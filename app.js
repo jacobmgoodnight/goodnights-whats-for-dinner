@@ -3,7 +3,7 @@
 'use strict';
 const app=document.getElementById('app'), badge=document.getElementById('modeBadge');
 const cfg=window.GW_CONFIG||{}, live=!!(cfg.supabaseUrl&&cfg.publishableKey);
-const demoKey='goodnights_demo_v2', familyKey='goodnights_family_token';
+const demoKey='goodnights_demo_v2', familyKey='goodnights_family_token', memberKey='goodnights_member_token';
 const sample=[
  ['Chipotle','Mexican'],['Culver’s','Burgers'],['Chick-fil-A','Chicken'],
  ['Texas Roadhouse','Steakhouse'],['Puccini’s Pizza','Pizza'],['Olive Garden','Italian'],
@@ -22,7 +22,7 @@ const icon=(category='',name='')=>{
  if(/sushi|japanese|asian|thai/.test(s))return '🍜';if(/cafe|coffee|panera|sandwich/.test(s))return '🥪';
  if(/seafood|fish/.test(s))return '🐟';return '🍽️';
 };
-let store, familyToken=localStorage.getItem(familyKey)||'',family=null,poll=null;
+let store, familyToken=localStorage.getItem(familyKey)||'',memberToken=localStorage.getItem(memberKey)||'',member=null,members=[],family=null,poll=null;
 const state={page:'home',selected:new Set(),meal:'Dinner',method:'approval',expected:4,
  name:localStorage.getItem('gw_name')||'',approvals:new Set(),swipes:{},swipeIndex:0,rank:[],
  search:'',nearby:[],nearbyBusy:false,center:null,city:'New Palestine, Indiana',restaurantName:'',nearbyQuery:'',
@@ -85,11 +85,12 @@ async function rpc(fn,p){
  if(!r.ok)throw Error(json.message||json.error||`Database error (${r.status})`);
  return json;
 }
-const pollUrl=id=>{const u=new URL(location.href);u.search='?poll='+encodeURIComponent(id);u.hash='';return u.href};
+const pollUrl=id=>{const u=new URL(location.href);u.search='?poll='+encodeURIComponent(id)+(memberToken&&!familyToken?'&member='+encodeURIComponent(memberToken):'');u.hash='';return u.href};
+const memberUrl=t=>{const u=new URL(location.href);u.search='?member='+encodeURIComponent(t);u.hash='';return u.href};
 const familyUrl=()=>{const u=new URL(location.href);u.search='?family='+encodeURIComponent(familyToken);u.hash='';return u.href};
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),4000)}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('Link copied!')}catch{prompt('Copy this link:',text)}}
-function navHtml(active){return `<nav class="nav" aria-label="Navigation">${[['home','🏠 Home'],['restaurants','🍽️ Restaurants'],['create','🗳️ New vote'],['history','📜 History']].map(([id,label])=>`<button class="${active===id?'active':''}" data-act="nav" data-page="${id}">${label}</button>`).join('')}</nav>`}
+function navHtml(active){return `<nav class="nav" aria-label="Navigation">${[['home','🏠 Home'],['restaurants','🍽️ Restaurants'],['create','🗳️ New vote'],['history','📜 History'],...(familyToken?[['members','👨‍👩‍👧‍👦 Members']]:[])].map(([id,label])=>`<button class="${active===id?'active':''}" data-act="nav" data-page="${id}">${label}</button>`).join('')}</nav>`}
 function layout(content,{nav=true}={}){badge.textContent=live?'FAMILY APP':'LOCAL DEMO';app.innerHTML=(nav?navHtml(state.page):'')+content}
 function pill(q){return `<span class="status ${q.status==='closed'?'closed':''}">${q.status==='closed'?'Finished':'Voting open'}</span>`}
 function timeAgo(date){try{return new Date(date).toLocaleDateString(undefined,{month:'short',day:'numeric'})}catch{return ''}}
@@ -98,12 +99,14 @@ function restaurantRow(r,{select=false,remove=false}={}){
  <div class="foodicon">${icon(r.category,r.name)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc([r.category,r.address].filter(Boolean).join(' · ')||'Family favorite')}</div></div>
  ${remove?`<button class="btn btn-quiet btn-sm" data-act="archive" data-id="${esc(r.id)}" aria-label="Hide ${esc(r.name)}">Hide</button>`:''}</div>`
 }
-async function loadFamily(){if(!familyToken){family=null;return}family=await rpc('gw_get_family',{p_token:familyToken})}
+async function loadFamily(){if(memberToken&&!familyToken){const m=await rpc('gw_get_member',{p_member_token:memberToken});member={id:m.id,name:m.name};family=m.family;return}if(!familyToken){family=null;return}family=await rpc('gw_get_family',{p_token:familyToken})}
+async function loadMembers(){members=familyToken?await rpc('gw_list_members',{p_token:familyToken}):[]}
 async function loadPoll(id){poll=await rpc('gw_get_poll',{p_poll_id:id})}
 function setPage(p){state.page=p;if(p!=='poll'){history.replaceState(null,'',location.pathname);clearInterval(pollTimer)}render();window.scrollTo({top:0,behavior:'instant'})}
 function render(){
  if(state.page==='poll')return renderPoll();
  if(!family)return renderWelcome();
+ if(state.page==='members')return renderMembers();
  if(state.page==='restaurants')return renderRestaurants();
  if(state.page==='create')return renderCreate();
  if(state.page==='history')return renderHistory();
