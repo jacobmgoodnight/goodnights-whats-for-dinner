@@ -14,19 +14,12 @@ const token=()=>Array.from(crypto.getRandomValues(new Uint8Array(24)),x=>x.toStr
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);
 const params=new URL(location.href).searchParams;
-const icon=(category='',name='')=>{
- const s=(category+' '+name).toLowerCase();
- if(/pizza/.test(s))return '🍕'; if(/taco|mexican|qdoba|chipotle/.test(s))return '🌮';
- if(/burger|culver|fast.food/.test(s))return '🍔';if(/chicken|chick/.test(s))return '🍗';
- if(/steak|roadhouse|bbq/.test(s))return '🥩';if(/italian|pasta|olive/.test(s))return '🍝';
- if(/sushi|japanese|asian|thai/.test(s))return '🍜';if(/cafe|coffee|panera|sandwich/.test(s))return '🥪';
- if(/seafood|fish/.test(s))return '🐟';return '🍽️';
-};
+const icon=(category='',name='',restaurant)=>window.GoodnightsLogos.render(restaurant||{name,category});
 let store, familyToken=localStorage.getItem(familyKey)||'',memberToken=localStorage.getItem(memberKey)||'',member=null,members=[],family=null,poll=null;
 const state={page:'home',selected:new Set(),meal:'Dinner',method:'approval',expected:4,
  name:localStorage.getItem('gw_name')||'',approvals:new Set(),swipes:{},swipeIndex:0,rank:[],
  search:'',nearby:[],nearbyBusy:false,center:null,city:'New Palestine, Indiana',restaurantName:'',nearbyQuery:'',
- adding:false,showNearby:false,busy:false,notice:''};
+ adding:false,showNearby:false,busy:false,notice:'',editingId:null};
 let pollTimer=null;
 function demoInit(){
  try{store=JSON.parse(localStorage.getItem(demoKey)||'null')}catch{store=null}
@@ -53,6 +46,13 @@ function demoRpc(fn,p){
    let r=store.restaurants.find(r=>r.name.toLowerCase()===p.p_name.trim().toLowerCase());
    if(r)r.active=true;else{r={id:uid(),family_id:F.id,active:true,name:p.p_name,category:p.p_category||'',address:p.p_address||'',latitude:p.p_latitude,longitude:p.p_longitude,osm_id:p.p_osm_id};store.restaurants.push(r)}
    demoSave();return r.id;
+ }
+ if(fn==='gw_update_restaurant'){
+  const r=store.restaurants.find(x=>x.id===p.p_restaurant_id&&x.family_id===F.id);
+  if(!r||p.p_token!==F.token)throw Error('Restaurant not found or access denied');
+  Object.assign(r,{name:p.p_name.trim(),category:p.p_category||'',address:p.p_address||'',
+    icon_mode:p.p_icon_mode||'auto',icon_value:p.p_icon_value||''});
+  demoSave();return r.id;
  }
  if(fn==='gw_archive_restaurant'){
    const r=store.restaurants.find(x=>x.id===p.p_restaurant_id);if(r)r.active=false;demoSave();return !!r;
@@ -96,8 +96,8 @@ function pill(q){return `<span class="status ${q.status==='closed'?'closed':''}"
 function timeAgo(date){try{return new Date(date).toLocaleDateString(undefined,{month:'short',day:'numeric'})}catch{return ''}}
 function restaurantRow(r,{select=false,remove=false}={}){
  return `<div class="item">${select?`<input class="check" type="checkbox" aria-label="Select ${esc(r.name)}" data-select="${esc(r.id)}" ${state.selected.has(r.id)?'checked':''}>`:''}
- <div class="foodicon">${icon(r.category,r.name)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc([r.category,r.address].filter(Boolean).join(' · ')||'Family favorite')}</div></div>
- ${remove?`<button class="btn btn-quiet btn-sm" data-act="archive" data-id="${esc(r.id)}" aria-label="Hide ${esc(r.name)}">Hide</button>`:''}</div>`
+ <div class="foodicon">${icon(r.category,r.name,r)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc([r.category,r.address].filter(Boolean).join(' · ')||'Family favorite')}</div></div>
+ ${remove?`<div class="restaurant-actions"><button class="btn btn-quiet btn-sm" data-act="editRestaurant" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.name)}">Edit</button><button class="btn btn-line btn-sm" data-act="archive" data-id="${esc(r.id)}" aria-label="Hide ${esc(r.name)}">Hide</button></div>`:''}</div>`
 }
 async function loadFamily(){if(memberToken&&!familyToken){const m=await rpc('gw_get_member',{p_member_token:memberToken});member={id:m.id,name:m.name};family=m.family;return}if(!familyToken){family=null;return}family=await rpc('gw_get_family',{p_token:familyToken})}
 async function loadMembers(){members=familyToken?await rpc('gw_list_members',{p_token:familyToken}):[]}
@@ -136,7 +136,7 @@ function renderRestaurants(){
  <div class="card"><div class="between"><h2 style="margin:0">Find something good</h2><button class="btn btn-primary btn-sm" data-act="toggleAdd">＋ Add</button></div>
  <h3>Find local restaurants</h3><p class="note">Search by restaurant name, town, or both. Leave the name blank to browse nearby places. OpenStreetMap results may be incomplete.</p><div class="field"><label for="localName">Restaurant name (optional)</label><input id="localName" maxlength="80" value="${esc(state.restaurantName)}" placeholder="e.g. Culver's or Puccini's"></div><div class="field"><label for="city">Town / location</label><input id="city" value="${esc(state.city)}" placeholder="New Palestine, Indiana"></div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="townSearch" ${state.nearbyBusy?'disabled':''}>🔎 Search restaurants</button><button class="btn btn-quiet btn-sm" data-act="gpsSearch" ${state.nearbyBusy?'disabled':''}>📍 Search near me</button></div>
  ${state.adding?`<div class="field"><label for="restName">Restaurant name</label><input id="restName" maxlength="120" placeholder="e.g. Frosty Boy"></div><div class="field"><label for="restCategory">Cuisine or category</label><input id="restCategory" maxlength="80" placeholder="e.g. Burgers, Pizza, Ice cream"></div><button class="btn btn-dark btn-full" data-act="addManual">Save to family list</button>`:''}
- ${state.nearbyBusy?'<p class="subtle">Looking for restaurants…</p>':''}${state.showNearby?`<h3 style="margin-top:20px">${state.nearby.length} ${state.nearbyQuery?'matching':'nearby'} restaurants${state.nearbyQuery?' for “'+esc(state.nearbyQuery)+'”':''}</h3>${state.nearby.length?state.nearby.map((r,i)=>`<div class="item"><div class="foodicon">${icon(r.category,r.name)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc(r.category)}${r.distance!=null?' · '+r.distance.toFixed(1)+' mi':''}${r.address?' · '+esc(r.address):''}</div></div>${family.restaurants.some(saved=>saved.osm_id&&saved.osm_id===r.osm_id)?'<span class="subtle">✓ Saved</span>':`<button class="btn btn-quiet btn-sm" data-act="addNearby" data-idx="${i}">+ Save</button>`}</div>`).join(''):'<p class="subtle">No matches found here. You can add a restaurant manually above.</p>'}`:''}
+ ${state.nearbyBusy?'<p class="subtle">Looking for restaurants…</p>':''}${state.showNearby?`<h3 style="margin-top:20px">${state.nearby.length} ${state.nearbyQuery?'matching':'nearby'} restaurants${state.nearbyQuery?' for “'+esc(state.nearbyQuery)+'”':''}</h3>${state.nearby.length?state.nearby.map((r,i)=>`<div class="item"><div class="foodicon">${icon(r.category,r.name,r)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc(r.category)}${r.distance!=null?' · '+r.distance.toFixed(1)+' mi':''}${r.address?' · '+esc(r.address):''}</div></div>${family.restaurants.some(saved=>saved.osm_id&&saved.osm_id===r.osm_id)?'<span class="subtle">✓ Saved</span>':`<button class="btn btn-quiet btn-sm" data-act="addNearby" data-idx="${i}">+ Save</button>`}</div>`).join(''):'<p class="subtle">No matches found here. You can add a restaurant manually above.</p>'}`:''}
  </div>
  <div class="card"><h2>Find it on Google Maps</h2>
  <p class="subtle">Free option: search Google Maps in another tab, then copy the restaurant name and address here. No Google API key required.</p>
@@ -175,11 +175,11 @@ function renderPoll(){
  else if(poll.method==='approval'){
  voting=`<div class="card"><h2>Pick up to 2</h2><p class="subtle">Which restaurants would you be happy eating?</p>${poll.options.map(r=>restaurantRow(r)).join('')}</div>`;
  // Re-render approval rows with their own input, without changing family-list state.
- voting=`<div class="card"><h2>Pick up to 2</h2><p class="subtle">Which restaurants would you be happy eating?</p>${poll.options.map(r=>`<label class="item"><input class="check" type="checkbox" data-approval="${esc(r.id)}" ${state.approvals.has(r.id)?'checked':''}><span class="foodicon">${icon(r.category,r.name)}</span><span class="item-body"><span class="item-title">${esc(r.name)}</span><span class="item-detail">${esc(r.category)}</span></span></label>`).join('')}</div>`;
+ voting=`<div class="card"><h2>Pick up to 2</h2><p class="subtle">Which restaurants would you be happy eating?</p>${poll.options.map(r=>`<label class="item"><input class="check" type="checkbox" data-approval="${esc(r.id)}" ${state.approvals.has(r.id)?'checked':''}><span class="foodicon">${icon(r.category,r.name,r)}</span><span class="item-body"><span class="item-title">${esc(r.name)}</span><span class="item-detail">${esc(r.category)}</span></span></label>`).join('')}</div>`;
  }else if(poll.method==='swipe'){
  const i=Math.min(state.swipeIndex,poll.options.length-1),r=poll.options[i];
  voting=`<div class="card"><div class="between"><strong>Swipe / consensus</strong><span class="subtle">${i+1} of ${poll.options.length}</span></div><div class="progress"><span style="width:${(i/poll.options.length)*100}%"></span></div>
- <div class="votecard" id="swipeCard"><div class="foodicon">${icon(r.category,r.name)}</div><h2>${esc(r.name)}</h2><p>${esc(r.category)} · Swipe left or right, or use the buttons.</p></div>
+ <div class="votecard" id="swipeCard"><div class="foodicon">${icon(r.category,r.name,r)}</div><h2>${esc(r.name)}</h2><p>${esc(r.category)} · Swipe left or right, or use the buttons.</p></div>
  <div class="vote-btns"><button class="btn btn-line" data-act="swipeNo">👎 Not tonight</button><button class="btn btn-primary" data-act="swipeYes">👍 Sounds good</button></div>
  ${i>0?`<button style="margin-top:10px" class="btn btn-quiet btn-sm" data-act="swipeBack">← Go back</button>`:''}</div>`;
  }else{
@@ -200,10 +200,10 @@ function renderResults(){
  const {scores,winners,details}=window.GoodnightsVoting.tally(poll);
  const all=poll.options||[],win=all.filter(o=>winners.includes(o.id));
  const maximum=Math.max(1,...Object.values(scores));
- const desc=win.length===1?`${icon(win[0].category,win[0].name)} ${esc(win[0].name)}`:win.length>1?`It's a tie! (${win.length} places)`:'No winner yet';
+ const desc=win.length===1?`${icon(win[0].category,win[0].name,win[0])} ${esc(win[0].name)}`:win.length>1?`It's a tie! (${win.length} places)`:'No winner yet';
  layout(`<div class="eyebrow">THE FAMILY HAS SPOKEN</div><div class="card winner"><div class="trophy">🏆</div><div class="eyebrow">${poll.meal.toUpperCase()} RESULTS</div><h1>${desc}</h1><p class="subtle">${esc(details)}</p></div>
  <div class="card"><div class="between"><h2>The results</h2><span class="count">${poll.voted_count} votes</span></div>
- ${[...all].sort((a,b)=>scores[b.id]-scores[a.id]||a.name.localeCompare(b.name)).map(r=>`<div class="resultbar"><div class="bar-head"><span>${icon(r.category,r.name)} ${esc(r.name)}</span><span>${poll.method==='swipe'?Math.round(100*scores[r.id]/Math.max(1,poll.voted_count))+'%':scores[r.id]+' '+(poll.method==='ranked'?'first-choice votes':'votes')}</span></div><div class="bar-track"><div class="bar-fill" style="width:${100*scores[r.id]/maximum}%"></div></div></div>`).join('')}
+ ${[...all].sort((a,b)=>scores[b.id]-scores[a.id]||a.name.localeCompare(b.name)).map(r=>`<div class="resultbar"><div class="bar-head"><span>${icon(r.category,r.name,r)} ${esc(r.name)}</span><span>${poll.method==='swipe'?Math.round(100*scores[r.id]/Math.max(1,poll.voted_count))+'%':scores[r.id]+' '+(poll.method==='ranked'?'first-choice votes':'votes')}</span></div><div class="bar-track"><div class="bar-fill" style="width:${100*scores[r.id]/maximum}%"></div></div></div>`).join('')}
  <p class="note">${win.length>1?'A tie is never broken at random. Start a runoff to decide.':poll.method==='ranked'?'Ranked-choice totals show the final elimination round.':'Each voter can approve up to two places or vote yes/no as configured.'}</p></div>
  ${win.length>1&&familyToken?`<button class="btn btn-primary btn-full" data-act="runoff">🗳️ Start a runoff between tied restaurants</button>`:''}
  <div class="btn-row" style="margin-top:13px"><button class="btn btn-quiet" data-act="copyPoll">Share results</button><button class="btn btn-line" data-act="goHome">Back to family</button></div>
