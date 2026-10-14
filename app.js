@@ -437,6 +437,14 @@ app.addEventListener('error',e=>{
   if(img.nextElementSibling)img.nextElementSibling.hidden=false;
  }
 },true);
+// Keep small favicons at their native resolution instead of stretching them.
+app.addEventListener('load',e=>{
+ const img=e.target;
+ if(img?.matches?.('img[data-restaurant-logo]')&&img.naturalWidth&&img.naturalHeight){
+  img.style.maxWidth=Math.min(img.naturalWidth,128)+'px';
+  img.style.maxHeight=Math.min(img.naturalHeight,128)+'px';
+ }
+},true);
 app.addEventListener('click',async e=>{
  const button=e.target.closest('[data-act]');if(!button||button.disabled)return;
  try{await doAction(button.dataset.act,button)}catch(err){toast(err.message||'Something went wrong')}

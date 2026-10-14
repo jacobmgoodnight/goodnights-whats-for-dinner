@@ -32,6 +32,17 @@ async function click(act,data={}){
  assert.match(html.innerHTML,/Find local restaurants/);
  assert.match(html.innerHTML,/Find it on Google Maps/);
  assert.match(html.innerHTML,/class="logo-symbol"|data-restaurant-logo/);
+ const logo={matches:()=>true,naturalWidth:16,naturalHeight:16,style:{},hidden:false,nextElementSibling:{hidden:true}};
+ listeners.load({target:logo});
+ assert.equal(logo.style.maxWidth,'16px');
+ assert.equal(logo.style.maxHeight,'16px');
+ listeners.error({target:logo});
+ assert.equal(logo.hidden,true);
+ assert.equal(logo.nextElementSibling.hidden,false);
+ const largeLogo={matches:()=>true,naturalWidth:512,naturalHeight:256,style:{}};
+ listeners.load({target:largeLogo});
+ assert.equal(largeLogo.style.maxWidth,'128px');
+ assert.equal(largeLogo.style.maxHeight,'128px');
  await click('nav',{page:'create'});
  const opts=[...html.innerHTML.matchAll(/data-select="([a-f0-9-]+)"/g)].map(x=>x[1]);
  assert.equal(opts.length,8);
