@@ -124,6 +124,12 @@ function renderHome(){
  ${latest.length?latest.slice(0,4).map(q=>`<div class="card"><div class="between"><div><strong>${esc(q.meal)} · ${methodName(q.method)}</strong><div class="subtle">${timeAgo(q.created_at)} · ${q.voted_count}/${q.expected_voters} voted</div></div>${pill(q)}</div><button class="btn btn-quiet btn-sm" style="margin-top:12px" data-act="openpoll" data-id="${esc(q.id)}">Open vote →</button></div>`).join(''):
  `<div class="card empty"><span class="empty-emoji">🗳️</span><h3>Your first vote is waiting</h3><p>There are no polls yet.</p><button class="btn btn-primary" data-act="nav" data-page="create">Create first vote</button></div>`}`)
 }
+function renderMembers(){
+ if(!familyToken){setPage('home');return}
+ layout(`<div class="eyebrow">FAMILY SETTINGS</div><h1>Family members</h1><p class="lede">Each person gets one permanent voting link. Only the family owner can manage members.</p>
+ <div class="card"><h2>Add a member</h2><div class="field"><label for="newMemberName">Name</label><input id="newMemberName" maxlength="60" placeholder="e.g. Charlotte"></div><button class="btn btn-primary btn-full" data-act="addMember">＋ Add family member</button></div>
+ <div class="card"><h2>${members.length} members</h2>${members.map(m=>`<div class="item"><span class="foodicon">👤</span><div class="item-body"><strong>${esc(m.name)}</strong><div class="subtle">Permanent personal link</div></div><button class="btn btn-quiet btn-sm" data-act="copyMember" data-id="${esc(m.id)}">Copy link</button><button class="btn btn-line btn-sm" data-act="editMember" data-id="${esc(m.id)}">Edit</button></div>`).join('')||'<p>No family members yet.</p>'}</div><p class="note">Reset a link if it is shared accidentally. The previous link will stop working.</p>`)
+}
 function renderRestaurants(){
  const search=state.search.toLowerCase().trim(),restaurants=(family.restaurants||[]).filter(r=>(r.name+' '+r.category+' '+r.address).toLowerCase().includes(search));
  layout(`<div class="eyebrow">OUR GO-TO SPOTS</div><div class="between"><div><h1>Our restaurants.</h1><p class="lede">Your family's personal shortlist. Add any place you like.</p></div><span class="count">${family.restaurants.length} saved</span></div>
@@ -249,7 +255,7 @@ async function getTown(){
  await findNearby(lat,lon);
 }
 async function doAction(act,button){
- if(act==='nav'){setPage(button.dataset.page);return}
+ if(act==='nav'){if(button.dataset.page==='members')await safe(loadMembers);setPage(button.dataset.page);return}
  if(act==='demo'){demoInit();await safe(async()=>{await loadFamily();render()});return}
  if(act==='newFamily'){
   const name=prompt('What should we call your family?','Goodnight Family');if(name===null)return;
