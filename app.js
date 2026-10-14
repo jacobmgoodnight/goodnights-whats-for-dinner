@@ -94,6 +94,32 @@ function navHtml(active){return `<nav class="nav" aria-label="Navigation">${[['h
 function layout(content,{nav=true}={}){badge.textContent=live?'FAMILY APP':'LOCAL DEMO';app.innerHTML=(nav?navHtml(state.page):'')+content}
 function pill(q){return `<span class="status ${q.status==='closed'?'closed':''}">${q.status==='closed'?'Finished':'Voting open'}</span>`}
 function timeAgo(date){try{return new Date(date).toLocaleDateString(undefined,{month:'short',day:'numeric'})}catch{return ''}}
+
+function appearanceFields(prefix,r={}){
+ const mode=r.icon_mode||'auto',value=r.icon_value||'';
+ return '<div class="appearance-editor"><div class="field"><label for="'+prefix+'Mode">Restaurant logo</label>'+
+  '<select id="'+prefix+'Mode">'+
+  [['auto','Automatic brand logo (when recognized)'],['logo_url','Custom logo image URL'],['website','Website icon / favicon'],['builtin','Built-in SVG icon']]
+  .map(([id,label])=>'<option value="'+id+'"'+(mode===id?' selected':'')+'>'+label+'</option>').join('')+
+  '</select></div><div class="field"><label for="'+prefix+'Value">Logo image URL or website</label>'+
+  '<input id="'+prefix+'Value" maxlength="500" value="'+esc(mode==='builtin'?'':value)+'" placeholder="https://example.com/logo.png or restaurant.com"></div>'+
+  '<div class="field"><label for="'+prefix+'Icon">Built-in fallback icon</label><select id="'+prefix+'Icon">'+
+  window.GoodnightsLogos.options(mode==='builtin'?value:window.GoodnightsLogos.keyFor(r.name,r.category))+
+  '</select></div><p class="note">Automatic works for popular chains; use a restaurant website or paste a direct HTTPS image address for a custom logo. SVG food icons appear if an image is unavailable.</p></div>';
+}
+function readAppearance(prefix){
+ const mode=$(prefix+'Mode').value;
+ let value=$(prefix+'Value').value.trim();
+ if(mode==='website'){
+  value=window.GoodnightsLogos.domain(value);
+  if(!value)throw Error('Enter a restaurant website such as culvers.com');
+ }else if(mode==='logo_url'){
+  value=window.GoodnightsLogos.imageURL(value);
+  if(!value)throw Error('Use a direct HTTPS logo image URL');
+ }else if(mode==='builtin')value=$(prefix+'Icon').value;
+ else value='';
+ return {icon_mode:mode,icon_value:value};
+}
 function restaurantRow(r,{select=false,remove=false}={}){
  return `<div class="item">${select?`<input class="check" type="checkbox" aria-label="Select ${esc(r.name)}" data-select="${esc(r.id)}" ${state.selected.has(r.id)?'checked':''}>`:''}
  <div class="foodicon">${icon(r.category,r.name,r)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc([r.category,r.address].filter(Boolean).join(' · ')||'Family favorite')}</div></div>
