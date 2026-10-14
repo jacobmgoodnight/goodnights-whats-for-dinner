@@ -18,7 +18,7 @@ const context={
  window:{scrollTo(){}}
 };
 vm.createContext(context);
-for(const file of ['config.js','voting.js','app.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,file),'utf8'),context,{filename:file});
+for(const file of ['config.js','voting.js','maps.js','app.js'])vm.runInContext(fs.readFileSync(path.join(ROOT,file),'utf8'),context,{filename:file});
 function tick(){return new Promise(resolve=>setImmediate(resolve))}
 async function click(act,data={}){const btn={dataset:{act,...data}};await listeners.click({target:{closest:()=>btn}});await tick()}
 function change(dataset,checked){listeners.change({target:{dataset,checked}})}
