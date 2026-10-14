@@ -48,6 +48,24 @@ On the **Restaurants** page, choose **Search Google Maps** to open an ordinary G
 
 A long Google Maps URL containing `/maps/place/...` or a Maps search query can also fill the name. Short `maps.app.goo.gl` links do not contain readable place details, so type or paste the name as well. We do not scrape Google's API or need a billing account; the submitted name/address are saved using the app's existing Supabase restaurant function. Your own saved entries stay available for future votes.
 
+
+## Restaurant logos and SVG icon customization
+
+Open the app as the **family organizer**, go to **Restaurants**, and select **Edit** next to any saved restaurant. You can edit its name, category and address, then choose the logo style:
+
+- **Automatic** — uses a recognizable favicon for known restaurant chains when available, otherwise an SVG food icon.
+- **Custom logo image URL** — paste a publicly accessible direct **HTTPS** image link (PNG/JPG/WebP recommended); use **Preview logo** and **Save changes**.
+- **Website icon** — paste a restaurant website such as \`https://www.culvers.com\`; the app retrieves a best-effort favicon from a free website icon endpoint.
+- **Built-in SVG icon** — select a crisp food icon from the menu.
+
+The same options are available when adding a restaurant manually or through the Google Maps copy/paste form. OpenStreetMap results can be customized after saving. If an external logo fails to load, the browser displays the SVG fallback. Automatic favicons may be smaller than full company logos; for a proper high-resolution restaurant logo, use a direct image URL supplied by the owner.
+
+The database upgrade was applied to the live Supabase project on October 14, 2026 and recorded at \`sql/restaurant_visuals.sql\`. It adds \`gw_restaurants.icon_mode\`, \`icon_value\`, a token-checked \`gw_update_restaurant\` RPC and logo fields in \`gw_get_family\` and \`gw_get_poll\`. **Do not rerun the original \`database.sql\` on the live project**. It is a historical baseline and does not contain the newer member-link and logo migrations.
+
+## Continue developing with Codex
+
+Open https://chatgpt.com/codex and select \`jacobmgoodnight/goodnights-whats-for-dinner\` from connected GitHub repositories. Codex reads the project-level \`AGENTS.md\` for requirements and safeguards. Start with a reviewable branch/PR, run \`node --test tests/*.test.js\`, and test the GitHub Pages site using the owner/member flows before merging.
+
 ## How voting works
 
 - **Approval:** One or two approvals per person. The restaurant with the most approval votes wins.
@@ -70,10 +88,13 @@ For more rigorous identity verification, strong abuse protection, or a larger pu
 | `index.html`, `styles.css`, `app.js` | Responsive browser UI and app behavior |
 | `voting.js` | Vote tallies and instant-runoff algorithm |
 | `maps.js` | Free Google Maps deep link and pasted-place-text parser |
+| `logos.js` | Brand favicons, custom HTTPS logo URLs, and SVG fallback icons |
+| `sql/restaurant_visuals.sql` | Applied additive restaurant-visuals database upgrade |
+| `AGENTS.md` | Repository guidance for Codex and security invariants |
 | `database.sql` | Supabase tables, row-level-security, access-limited RPC functions |
 | `config.js` | Public Supabase project URL and publishable key (empty = demo) |
 | `icon.svg`, `manifest.webmanifest` | App icon and phone home-screen metadata |
-| `tests/voting.test.js`, `tests/app-smoke.test.js`, `tests/maps.test.js` | Voting, UI smoke, and Google Maps paste tests; run with `node --test tests/*.test.js` |
+| `tests/*.test.js` | Voting, UI smoke, Google Maps paste, and restaurant logo tests; run with `node --test tests/*.test.js` |
 
 No `npm install` or JavaScript build system is required.
 
