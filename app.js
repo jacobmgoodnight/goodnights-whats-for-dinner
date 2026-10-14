@@ -101,7 +101,7 @@ function restaurantRow(r,{select=false,remove=false}={}){
 }
 async function loadFamily(){if(memberToken&&!familyToken){const m=await rpc('gw_get_member',{p_member_token:memberToken});member={id:m.id,name:m.name};family=m.family;return}if(!familyToken){family=null;return}family=await rpc('gw_get_family',{p_token:familyToken})}
 async function loadMembers(){members=familyToken?await rpc('gw_list_members',{p_token:familyToken}):[]}
-async function loadPoll(id){poll=await rpc('gw_get_poll',{p_poll_id:id})}
+async function loadPoll(id){poll=await rpc('gw_get_poll',{p_poll_id:id});if(memberToken&&member){const voted=await rpc('gw_member_has_voted',{p_poll_id:id,p_member_token:memberToken});poll.voted_member_ids=voted?[member.id]:[]}}
 function setPage(p){state.page=p;if(p!=='poll'){history.replaceState(null,'',location.pathname);clearInterval(pollTimer)}render();window.scrollTo({top:0,behavior:'instant'})}
 function render(){
  if(state.page==='poll')return renderPoll();
@@ -200,7 +200,7 @@ function renderResults(){
  `,{nav:false})
 }
 async function safe(fn){try{state.busy=true;await fn()}catch(e){toast(e.message||'Something went wrong');console.error(e)}finally{state.busy=false}}
-async function openPoll(id){state.approvals=new Set();state.swipes={};state.swipeIndex=0;state.rank=[];poll=null;state.page='poll';history.replaceState(null,'',pollUrl(id));window.scrollTo({top:0});render();await safe(async()=>{await loadPoll(id);render();clearInterval(pollTimer);if(poll.status==='open')pollTimer=setInterval(async()=>{try{const prev=poll;const next=await rpc('gw_get_poll',{p_poll_id:id});poll=next;if(prev.voted_count!==next.voted_count||prev.status!==next.status)render();if(next.status==='closed')clearInterval(pollTimer)}catch{}},8000)})}
+async function openPoll(id){state.approvals=new Set();state.swipes={};state.swipeIndex=0;state.rank=[];poll=null;state.page='poll';history.replaceState(null,'',pollUrl(id));window.scrollTo({top:0});render();await safe(async()=>{await loadPoll(id);render();clearInterval(pollTimer);if(poll.status==='open')pollTimer=setInterval(async()=>{try{const prev=poll;const next=await rpc('gw_get_poll',{p_poll_id:id});poll=next;if(memberToken&&member){const voted=await rpc('gw_member_has_voted',{p_poll_id:id,p_member_token:memberToken});poll.voted_member_ids=voted?[member.id]:[]}if(prev.voted_count!==next.voted_count||prev.status!==next.status)render();if(next.status==='closed')clearInterval(pollTimer)}catch{}},8000)})}
 async function refreshFamily(){if(familyToken)await loadFamily();render()}
 async function makePoll(ids,method=state.method,expected=state.expected){
  const id=await rpc('gw_create_poll',{p_token:familyToken,p_meal:state.meal,p_method:method,p_expected_voters:expected,p_restaurant_ids:ids});
@@ -307,7 +307,7 @@ async function doAction(act,button){
  if(act==='swipeNo'){voteSwipe(false);return}
  if(act==='swipeYes'){voteSwipe(true);return}
  if(act==='swipeBack'){state.swipeIndex=Math.max(0,state.swipeIndex-1);render();return}
- if(act==='resetVote'){localStorage.removeItem('gw_voted_'+poll.id);state.name='';state.approvals=new Set();state.swipes={};state.swipeIndex=0;state.rank=[];render();return}
+ if(act==='resetVote'){if(memberToken){await openPoll(poll.id);return}localStorage.removeItem('gw_voted_'+poll.id);state.name='';state.approvals=new Set();state.swipes={};state.swipeIndex=0;state.rank=[];render();return}
  if(act==='submitVote'){
   state.name=$('voterName')?.value.trim()||state.name;if(!state.name)throw Error('Enter your name first.');
   let ballot;
