@@ -213,9 +213,10 @@ function renderPoll(){
  voting=`<div class="card"><h2>Pick up to 2</h2><p class="subtle">Which restaurants would you be happy eating?</p>${poll.options.map(r=>`<label class="item"><input class="check" type="checkbox" data-approval="${esc(r.id)}" ${state.approvals.has(r.id)?'checked':''}><span class="foodicon">${icon(r.category,r.name,r)}</span><span class="item-body"><span class="item-title">${esc(r.name)}</span><span class="item-detail">${esc(r.category)}</span></span></label>`).join('')}</div>`;
  }else if(poll.method==='swipe'){
  const i=Math.min(state.swipeIndex,poll.options.length-1),r=poll.options[i];
- voting=`<div class="card"><div class="between"><strong>Swipe / consensus</strong><span class="subtle">${i+1} of ${poll.options.length}</span></div><div class="progress"><span style="width:${(i/poll.options.length)*100}%"></span></div>
+ voting=`<div class="card"><div class="between"><strong>Swipe / consensus</strong><span class="subtle">${Object.keys(state.swipes).length} of ${poll.options.length} answered</span></div><div class="progress"><span style="width:${(Object.keys(state.swipes).length/poll.options.length)*100}%"></span></div>
  <div class="votecard" id="swipeCard"><div class="foodicon">${icon(r.category,r.name,r)}</div><h2>${esc(r.name)}</h2><p>${esc(r.category)} · Swipe left or right, or use the buttons.</p></div>
  <div class="vote-btns"><button class="btn btn-line" data-act="swipeNo">👎 Not tonight</button><button class="btn btn-primary" data-act="swipeYes">👍 Sounds good</button></div>
+ <p class="subtle" role="status">${Object.keys(state.swipes).length===poll.options.length?"All restaurants answered. Submit your vote below.":"Answer each restaurant, then submit your vote."}</p>
  ${i>0?`<button style="margin-top:10px" class="btn btn-quiet btn-sm" data-act="swipeBack">← Go back</button>`:''}</div>`;
  }else{
  const count=Math.min(3,poll.options.length);
@@ -460,9 +461,22 @@ app.addEventListener('input',e=>{
  else if(t.id==='localName')state.restaurantName=t.value;
  else if(t.id==='voterName')state.name=t.value;
 });
-let touchX=0;
-app.addEventListener('touchstart',e=>{if(e.target.closest('#swipeCard'))touchX=e.changedTouches[0].screenX},{passive:true});
-app.addEventListener('touchend',e=>{if(!e.target.closest('#swipeCard')||state.page!=='poll'||poll?.method!=='swipe')return;const dx=e.changedTouches[0].screenX-touchX;if(Math.abs(dx)>60)voteSwipe(dx>0)},{passive:true});
+let swipeTouch=null;
+app.addEventListener('touchstart',e=>{
+ swipeTouch=null;
+ if(e.touches.length!==1||!e.target.closest('#swipeCard'))return;
+ const t=e.changedTouches[0];
+ swipeTouch={id:t.identifier,x:t.screenX,y:t.screenY};
+},{passive:true});
+app.addEventListener('touchcancel',()=>{swipeTouch=null},{passive:true});
+app.addEventListener('touchend',e=>{
+ const start=swipeTouch;swipeTouch=null;
+ if(!start||!e.target.closest('#swipeCard')||state.page!=='poll'||poll?.method!=='swipe')return;
+ const t=Array.from(e.changedTouches).find(t=>t.identifier===start.id);
+ if(!t)return;
+ const dx=t.screenX-start.x,dy=t.screenY-start.y;
+ if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)voteSwipe(dx>0);
+},{passive:true});
 async function init(){
  if(!live){demoInit();badge.textContent='LOCAL DEMO'}
  else if(params.get('member')){memberToken=params.get('member');familyToken='';localStorage.setItem(memberKey,memberToken);localStorage.removeItem(familyKey)}

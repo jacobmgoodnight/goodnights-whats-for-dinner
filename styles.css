@@ -25,4 +25,15 @@ main{padding:22px 20px 30px}h1{font-size:clamp(33px,7vw,52px);line-height:1.05;l
 .logo-preview-line>span{font-size:12px;font-weight:750;color:var(--muted)}
 .restaurant-edit-card{border-color:#e8b58d;background:#fffaf2}
 .restaurant-edit-card .btn-row .btn{flex:1 1 130px}
-@media(max-width:420px){.restaurant-actions{flex-direction:column}.restaurant-actions .btn{min-height:31px;padding:7px 10px}.appearance-editor{padding:6px 10px}.item{gap:8px}}
+@media(max-width:420px){.restaurant-actions{flex-direction:column}.restaurant-actions .btn{min-height:44px;padding:9px 10px}.appearance-editor{padding:6px 10px}.item{gap:8px}}
+
+/* Keep navigation readable and controls comfortable on small touch screens. */
+.nav{flex-wrap:wrap}
+.nav button{flex:1 1 90px;min-height:44px}
+.rankoption select{min-height:44px;font-size:16px}
+#swipeCard{touch-action:pan-y}
+@media(max-width:699px){
+ .field input,.field select,.searchbox,.appearance-editor input,.appearance-editor select{font-size:16px}
+ .btn-sm{min-height:44px}
+ .nav button{flex-basis:30%}
+}

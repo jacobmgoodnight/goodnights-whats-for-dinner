@@ -41,5 +41,22 @@ async function click(act,data={}){
  await click('createPoll');
  assert.match(html.innerHTML,/Pick up to 2/);
  assert.match(html.innerHTML,/personal member link|personal family member link/);
+ // A vertical scroll must not answer a consensus card, even with horizontal drift.
+ await click('nav',{page:'create'});
+ listeners.change({target:{name:'method',value:'swipe',dataset:{}}});
+ await click('createPoll');
+ assert.match(html.innerHTML,/0 of 2 answered/);
+ const target={closest:()=>true};
+ const touch=(screenX,screenY)=>({identifier:1,screenX,screenY});
+ const start=()=>listeners.touchstart({target,touches:[touch(0,0)],changedTouches:[touch(0,0)]});
+ start();listeners.touchend({target,changedTouches:[touch(80,180)]});
+ assert.match(html.innerHTML,/0 of 2 answered/);
+ start();listeners.touchcancel();listeners.touchend({target,changedTouches:[touch(100,0)]});
+ assert.match(html.innerHTML,/0 of 2 answered/);
+ start();listeners.touchend({target,changedTouches:[touch(100,10)]});
+ assert.match(html.innerHTML,/1 of 2 answered/);
+ await click('swipeNo');
+ assert.match(html.innerHTML,/2 of 2 answered/);
+ assert.match(html.innerHTML,/All restaurants answered/);
  console.log('App smoke passed: logo visuals, restaurant discovery, poll creation and member-only voting UI');
 })().catch(e=>{console.error(e);process.exitCode=1});
