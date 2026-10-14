@@ -137,6 +137,16 @@ function renderRestaurants(){
  <h3>Find local restaurants</h3><p class="note">Search by restaurant name, town, or both. Leave the name blank to browse nearby places. OpenStreetMap results may be incomplete.</p><div class="field"><label for="localName">Restaurant name (optional)</label><input id="localName" maxlength="80" value="${esc(state.restaurantName)}" placeholder="e.g. Culver's or Puccini's"></div><div class="field"><label for="city">Town / location</label><input id="city" value="${esc(state.city)}" placeholder="New Palestine, Indiana"></div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="townSearch" ${state.nearbyBusy?'disabled':''}>🔎 Search restaurants</button><button class="btn btn-quiet btn-sm" data-act="gpsSearch" ${state.nearbyBusy?'disabled':''}>📍 Search near me</button></div>
  ${state.adding?`<div class="field"><label for="restName">Restaurant name</label><input id="restName" maxlength="120" placeholder="e.g. Frosty Boy"></div><div class="field"><label for="restCategory">Cuisine or category</label><input id="restCategory" maxlength="80" placeholder="e.g. Burgers, Pizza, Ice cream"></div><button class="btn btn-dark btn-full" data-act="addManual">Save to family list</button>`:''}
  ${state.nearbyBusy?'<p class="subtle">Looking for restaurants…</p>':''}${state.showNearby?`<h3 style="margin-top:20px">${state.nearby.length} ${state.nearbyQuery?'matching':'nearby'} restaurants${state.nearbyQuery?' for “'+esc(state.nearbyQuery)+'”':''}</h3>${state.nearby.length?state.nearby.map((r,i)=>`<div class="item"><div class="foodicon">${icon(r.category,r.name)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc(r.category)}${r.distance!=null?' · '+r.distance.toFixed(1)+' mi':''}${r.address?' · '+esc(r.address):''}</div></div>${family.restaurants.some(saved=>saved.osm_id&&saved.osm_id===r.osm_id)?'<span class="subtle">✓ Saved</span>':`<button class="btn btn-quiet btn-sm" data-act="addNearby" data-idx="${i}">+ Save</button>`}</div>`).join(''):'<p class="subtle">No matches found here. You can add a restaurant manually above.</p>'}`:''}
+ </div>
+ <div class="card"><h2>Find it on Google Maps</h2>
+ <p class="subtle">Free option: search Google Maps in another tab, then copy the restaurant name and address here. No Google API key required.</p>
+ <button class="btn btn-quiet btn-full" data-act="openGoogleMaps">🔎 Search Google Maps ↗</button>
+ <div class="field"><label for="googlePaste">Paste a Google Maps listing, full link, or name and address</label><textarea class="searchbox" id="googlePaste" rows="3" style="resize:vertical;min-height:86px" placeholder="Restaurant name&#10;Street address, city, state&#10;or a Google Maps link"></textarea></div>
+ <button class="btn btn-line btn-full" data-act="fillGoogle">Use pasted details ↓</button>
+ <div class="field"><label for="googleName">Restaurant name</label><input id="googleName" maxlength="120" placeholder="e.g. Frosty Boy"></div>
+ <div class="field"><label for="googleAddress">Address (optional)</label><input id="googleAddress" maxlength="240" placeholder="Street address, town, state"></div>
+ <p class="note">Short maps.app.goo.gl links don't contain readable names. If you copy one, also paste the restaurant name and address from Google Maps.</p>
+ <button class="btn btn-dark btn-full" data-act="saveGoogle">＋ Save to family restaurants</button>
  </div><div class="card"><div class="field" style="margin-top:0"><label for="restaurantSearch">Filter your list</label><input id="restaurantSearch" value="${esc(state.search)}" placeholder="Search saved restaurants…"></div>
  ${restaurants.length?restaurants.map(r=>restaurantRow(r,{remove:true})).join(''):`<div class="empty"><span class="empty-emoji">🥗</span><h3>No matching restaurants</h3><p>Add a favorite or change your search.</p></div>`}</div>`)
 }
@@ -280,6 +290,35 @@ async function doAction(act,button){
  if(act==='archive'){
   if(!confirm('Hide this restaurant from future votes?'))return;
   await safe(async()=>{await rpc('gw_archive_restaurant',{p_token:familyToken,p_restaurant_id:button.dataset.id});await loadFamily();state.selected.delete(button.dataset.id);render();toast('Restaurant hidden')});return;
+ }
+ if(act==='openGoogleMaps'){
+  const name=$('localName')?.value||state.restaurantName;
+  const town=$('city')?.value||state.city;
+  const url=window.GoodnightsMaps.searchUrl(name,town);
+  window.open(url,'_blank','noopener,noreferrer');
+  return;
+ }
+ if(act==='fillGoogle'){
+  const raw=$('googlePaste')?.value||'';
+  if(!raw.trim())throw Error('Paste the name and address or a full Google Maps link first.');
+  const info=window.GoodnightsMaps.parsePaste(raw);
+  if(info.name)$('googleName').value=info.name;
+  if(info.address)$('googleAddress').value=info.address;
+  toast(info.name?'Check the details below, then save.':info.shortLink?'Short Google Maps links cannot reveal a restaurant name. Please enter the name below.':'Enter the restaurant name below, then save.');
+  return;
+ }
+ if(act==='saveGoogle'){
+  const pasted=window.GoodnightsMaps.parsePaste($('googlePaste')?.value||'');
+  const name=($('googleName')?.value.trim()||pasted.name||'').slice(0,120);
+  const address=($('googleAddress')?.value.trim()||pasted.address||'').slice(0,240);
+  if(!name)throw Error('Enter a restaurant name. Short Google Maps links need the name entered separately.');
+  if(family.restaurants.some(r=>r.name.trim().toLowerCase()===name.trim().toLowerCase()))
+   throw Error('This restaurant name is already saved. To add another location, include the town in its name.');
+  await safe(async()=>{
+   await rpc('gw_add_restaurant',{p_token:familyToken,p_name:name,p_category:'',p_address:address});
+   await loadFamily();render();toast(name+' added to your list!');
+  });
+  return;
  }
  if(act==='townSearch'){await safe(getTown);return}
  if(act==='gpsSearch'){
