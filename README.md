@@ -104,3 +104,11 @@ No `npm install` or JavaScript build system is required.
 - [Supabase API key guidance](https://supabase.com/docs/guides/getting-started/api-keys)
 - [Supabase free plan / pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
 - [Overpass API limitations](https://wiki.openstreetmap.org/wiki/Overpass_API)
+
+## Choosing and sharing a vote
+
+On New vote, filter saved restaurants by name, category or town. Closest to me uses device location to sort restaurants with saved coordinates; optional 5, 10 and 20 mile limits use straight-line distance. Entries without coordinates are shown last without a distance limit, or can be found by their saved town/address. No location is saved to the database.
+
+Tap a whole restaurant row, use Select all shown (up to 20), or Pick 5 for me. Filters preserve existing selections and show how many selected entries are hidden. Clear selection starts over.
+
+After creating a vote, the organizer sees Invite family to this vote. Copy link or Send link next to a member includes that member’s personal link and the current poll. Send opens the device share sheet when supported, otherwise copies the link. Send each personal link only to its intended person.
