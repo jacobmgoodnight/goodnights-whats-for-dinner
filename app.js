@@ -316,11 +316,34 @@ async function doAction(act,button){
  if(act==='addMember'){const n=$('newMemberName')?.value.trim();if(!n)throw Error('Enter a name');await safe(async()=>{await rpc('gw_add_member',{p_token:familyToken,p_name:n});await loadMembers();render();toast('Member added')});return}
  if(act==='copyMember'){const m=members.find(x=>x.id===button.dataset.id);if(m)copy(memberUrl(m.token));return}
  if(act==='editMember'){const m=members.find(x=>x.id===button.dataset.id);if(!m)return;const v=prompt('New name, RESET to replace personal link, or REMOVE to disable member',m.name);if(v===null)return;await safe(async()=>{if(v.toUpperCase()==='RESET'){if(!confirm('Replace personal link? The previous link will stop working.'))return;await rpc('gw_rotate_member',{p_token:familyToken,p_member_id:m.id})}else if(v.toUpperCase()==='REMOVE'){if(!confirm('Remove '+m.name+'?'))return;await rpc('gw_remove_member',{p_token:familyToken,p_member_id:m.id})}else await rpc('gw_rename_member',{p_token:familyToken,p_member_id:m.id,p_name:v.trim()});await loadMembers();render();toast('Member updated')});return}
+ if(act==='editRestaurant'){state.editingId=button.dataset.id;render();window.scrollTo({top:0,behavior:'smooth'});return}
+ if(act==='cancelRestaurant'){state.editingId=null;render();return}
+ if(act==='previewRestaurant'){
+  const r={name:$('editName')?.value||'',category:$('editCategory')?.value||'',...readAppearance('edit')};
+  $('logoPreview').innerHTML=icon(r.category,r.name,r);return;
+ }
+ if(act==='saveRestaurant'){
+  const id=state.editingId,name=$('editName')?.value.trim(),category=$('editCategory')?.value.trim()||'',
+        address=$('editAddress')?.value.trim()||'';
+  if(!name)throw Error('Enter a restaurant name');
+  const appearance=readAppearance('edit');
+  await safe(async()=>{
+   await rpc('gw_update_restaurant',{p_token:familyToken,p_restaurant_id:id,p_name:name,
+     p_category:category,p_address:address,p_icon_mode:appearance.icon_mode,p_icon_value:appearance.icon_value});
+   await loadFamily();state.editingId=null;render();toast(name+' updated');
+  });return;
+ }
  if(act==='toggleAdd'){state.adding=!state.adding;render();return}
  if(act==='addManual'){
   const name=$('restName')?.value.trim(),category=$('restCategory')?.value.trim();
   if(!name)throw Error('Enter a restaurant name.');
-  await safe(async()=>{await rpc('gw_add_restaurant',{p_token:familyToken,p_name:name,p_category:category||'',p_address:''});await loadFamily();state.adding=false;render();toast(name+' added to your list')});return;
+  const appearance=readAppearance('manual');
+  await safe(async()=>{
+   const id=await rpc('gw_add_restaurant',{p_token:familyToken,p_name:name,p_category:category||'',p_address:''});
+   if(appearance.icon_mode!=='auto')await rpc('gw_update_restaurant',{p_token:familyToken,p_restaurant_id:id,
+     p_name:name,p_category:category||'',p_address:'',p_icon_mode:appearance.icon_mode,p_icon_value:appearance.icon_value});
+   await loadFamily();state.adding=false;render();toast(name+' added to your list');
+  });return;
  }
  if(act==='archive'){
   if(!confirm('Hide this restaurant from future votes?'))return;
@@ -349,8 +372,11 @@ async function doAction(act,button){
   if(!name)throw Error('Enter a restaurant name. Short Google Maps links need the name entered separately.');
   if(family.restaurants.some(r=>r.name.trim().toLowerCase()===name.trim().toLowerCase()))
    throw Error('This restaurant name is already saved. To add another location, include the town in its name.');
+  const appearance=readAppearance('google');
   await safe(async()=>{
-   await rpc('gw_add_restaurant',{p_token:familyToken,p_name:name,p_category:'',p_address:address});
+   const id=await rpc('gw_add_restaurant',{p_token:familyToken,p_name:name,p_category:'',p_address:address});
+   if(appearance.icon_mode!=='auto')await rpc('gw_update_restaurant',{p_token:familyToken,p_restaurant_id:id,
+     p_name:name,p_category:'',p_address:address,p_icon_mode:appearance.icon_mode,p_icon_value:appearance.icon_value});
    await loadFamily();render();toast(name+' added to your list!');
   });
   return;
@@ -404,6 +430,13 @@ async function doAction(act,button){
   await safe(async()=>{await loadFamily();setPage('home')});return;
  }
 }
+app.addEventListener('error',e=>{
+ const img=e.target;
+ if(img?.matches?.('img[data-restaurant-logo]')){
+  img.hidden=true;
+  if(img.nextElementSibling)img.nextElementSibling.hidden=false;
+ }
+},true);
 app.addEventListener('click',async e=>{
  const button=e.target.closest('[data-act]');if(!button||button.disabled)return;
  try{await doAction(button.dataset.act,button)}catch(err){toast(err.message||'Something went wrong')}
