@@ -7,7 +7,7 @@ A free, mobile-first restaurant voting app for the Goodnight family. No framewor
 - Maintain your own family restaurant list. Add any restaurant manually, or optionally find restaurants near a town or current location through public OpenStreetMap services.
 - Create **Lunch** or **Dinner** polls (2–20 restaurants; 1–20 expected voters).
 - Choose from **Approval** (pick up to 2), **Swipe/Consensus** (yes/no for each), and **Ranked choice** (rank top 3; instant-runoff tally).
-- Send an unguessable voting link so each family member can vote from their own phone. Voters type a name instead of creating an account.
+- Set up named family members in the **Members** tab. Each member has a reusable personal voting link; their ballots are associated with that member, not a name they type.
 - Hide the results until all expected votes arrive or someone with the family link closes the vote early. View history, and run a follow-up vote when there's a tie.
 - Install as a web app on a phone through the browser's Add to Home Screen option.
 
@@ -34,13 +34,19 @@ window.GW_CONFIG = {
 
 **3. Publish the files to GitHub Pages:** Make a new **public** GitHub repository at https://github.com/new, e.g. `goodnights-whats-for-dinner`. Upload the individual contents of this folder to the top-level of the repo (so `index.html` is at the root). Under **Settings → Pages**, set **Source: Deploy from a branch**, select **main** and **/(root)**, then Save. Your site will have a URL like `https://jacobmgoodnight.github.io/goodnights-whats-for-dinner/` if you choose that repository name. Public GitHub Pages hosting is available on GitHub Free.
 
-**4. Create your household:** Visit the live website, select **Create our family**, give it a name, and immediately save/share the **family invite link** from the home screen. Each family member can use that link to access your restaurant list; a poll's **vote link** can be sent separately to voters. After everyone votes, the result appears automatically (the app checks about every 8 seconds).
+**4. Save the organizer link:** Keep the family invite link private: it permits restaurant and poll management. From **Members**, create a profile for each voter and share their separate personal link. A person's link can be reused for future polls and can be reset by the organizer. After everyone votes, results appear automatically (the app checks about every 8 seconds).
 
 *Note:* Supabase free projects can pause after a week of low activity. If this happens, log into your Supabase Dashboard and resume it. No recurring charges are needed within the services' free allowances, though service limits can change.
 
 ## Restaurant search / OpenStreetMap
 
-The **Restaurants → + Add** screen includes a manual entry form and optional free location search. Search near **New Palestine, Indiana** or allow location access on your phone. It sends one user-initiated geocode request to Nominatim, then searches a ~6-mile (10-km) radius with Overpass. Public OSM data may be incomplete and public servers can be slow, rate-limited, or unavailable. Restaurants may not have complete addresses; hours and driving times are not provided. Results use straight-line distances. Manual entry is always available. Data © OpenStreetMap contributors under ODbL.
+The **Restaurants** page shows free location search directly; **+ Add** reveals the manual entry form. Search near **New Palestine, Indiana** or allow location access on your phone. It sends one user-initiated geocode request to Nominatim, then searches a ~6-mile (10-km) radius with Overpass. Public OSM data may be incomplete and public servers can be slow, rate-limited, or unavailable. Restaurants may not have complete addresses; hours and driving times are not provided. Results use straight-line distances. Manual entry is always available. Data © OpenStreetMap contributors under ODbL.
+
+## Google Maps fallback (no billing or API key)
+
+On the **Restaurants** page, choose **Search Google Maps** to open an ordinary Google Maps search for the entered name and town. Copy the restaurant's name and address from Google Maps, then paste the lines into **Paste a Google Maps listing**. Choose **Use pasted details**, review or edit the name and address, and choose **Save to family restaurants**.
+
+A long Google Maps URL containing `/maps/place/...` or a Maps search query can also fill the name. Short `maps.app.goo.gl` links do not contain readable place details, so type or paste the name as well. We do not scrape Google's API or need a billing account; the submitted name/address are saved using the app's existing Supabase restaurant function. Your own saved entries stay available for future votes.
 
 ## How voting works
 
@@ -51,9 +57,9 @@ The **Restaurants → + Add** screen includes a manual entry form and optional f
 
 ## Security and privacy
 
-This is a **trusted-family game**, not an authenticated election. Invite links are randomly generated, but possession of the family link permits adding/removing restaurants and closing polls. A poll link allows someone to submit a named vote, and a voter could use another name or submit multiple names. Links could be forwarded. Do not put sensitive personal information in poll names or the restaurant list.
+This is a **trusted-family game**, not an authenticated election. Invite links are randomly generated. Possession of the organizer link permits managing restaurants, polls, and members. Each personal member link permits votes under that member's identity and can be reset if forwarded; do not share the organizer link with all voters. Do not put sensitive personal information in poll names or the restaurant list.
 
-The website's source code is public on free GitHub Pages. The family database is not publicly listed: direct table access is blocked; all access is via narrowly-scoped SQL functions. The Supabase publishable key can safely appear in client code *with these database permissions*. Share only the family or poll links with your family.
+The website's source code is public on free GitHub Pages. The family database is not publicly listed: direct table access is blocked; all access is via narrowly-scoped SQL functions. The Supabase publishable key can safely appear in client code *with these database permissions*. Share the organizer link only with the organizer; share individual member links with their intended voters.
 
 For more rigorous identity verification, strong abuse protection, or a larger public app, we'd add user authentication and dedicated policies.
 
@@ -63,10 +69,11 @@ For more rigorous identity verification, strong abuse protection, or a larger pu
 |---|---|
 | `index.html`, `styles.css`, `app.js` | Responsive browser UI and app behavior |
 | `voting.js` | Vote tallies and instant-runoff algorithm |
+| `maps.js` | Free Google Maps deep link and pasted-place-text parser |
 | `database.sql` | Supabase tables, row-level-security, access-limited RPC functions |
 | `config.js` | Public Supabase project URL and publishable key (empty = demo) |
 | `icon.svg`, `manifest.webmanifest` | App icon and phone home-screen metadata |
-| `tests/voting.test.js`, `tests/app-smoke.test.js` | Vote counting and UI smoke tests; run both with Node.js |
+| `tests/voting.test.js`, `tests/app-smoke.test.js`, `tests/maps.test.js` | Voting, UI smoke, and Google Maps paste tests; run with `node --test tests/*.test.js` |
 
 No `npm install` or JavaScript build system is required.
 
