@@ -116,13 +116,13 @@ function renderWelcome(){layout(`<div class="card hero"><div class="eyebrow">WEL
  ${live?`<button class="btn btn-dark" data-act="newFamily">Create our family</button><div class="field"><label>Already have a family link?</label><input id="joinToken" placeholder="Paste your family invite link"></div><button class="btn btn-line" data-act="join">Join family</button>`:`<button class="btn btn-dark" data-act="demo">Explore the sample app</button><p class="note">Demo only until you connect Supabase. Votes stay in this browser and cannot be shared with other phones.</p>`}</div>`,{nav:false})}
 function renderHome(){
  let latest=family.polls||[];
- layout(`<div class="card hero"><div class="hero-emoji">🍔</div><div class="eyebrow">${esc(family.name)} · DINNER CLUB</div><h1>So... what's for dinner?</h1><p class="lede">Skip the debate. Pick a few places, vote together, and let dinner decide itself.</p><button class="btn btn-dark" data-act="nav" data-page="create">Start a family vote →</button></div>
+ layout(`<div class="card hero"><div class="hero-emoji">🍔</div><div class="eyebrow">${esc(family.name)} · DINNER CLUB</div><h1>So... what's for dinner?</h1><p class="lede">Skip the debate. Pick a few places, vote together, and let dinner decide itself.</p>${familyToken?`<button class="btn btn-dark" data-act="nav" data-page="create">Start a family vote →</button>`:`<p class="subtle">Signed in as ${esc(member?.name||"family member")}</p>`}</div>
  ${!live?`<div class="muted-box" style="margin-bottom:15px"><strong>🧪 Local demo</strong><div>This sample works on this device only. To vote together on multiple phones, complete the Supabase + GitHub Pages setup in the README.</div></div>`:''}
- <div class="grid2"><div class="card"><span class="eyebrow">FAMILY FAVORITES</span><h2>🍽️ ${family.restaurants.length} places</h2><p class="subtle">Add restaurants once. Vote on them anytime.</p><button class="btn btn-quiet btn-sm" data-act="nav" data-page="restaurants">Manage restaurants ↗</button></div>
+ ${familyToken?`<div class="grid2"><div class="card"><span class="eyebrow">FAMILY FAVORITES</span><h2>🍽️ ${family.restaurants.length} places</h2><p class="subtle">Add restaurants once. Vote on them anytime.</p><button class="btn btn-quiet btn-sm" data-act="nav" data-page="restaurants">Manage restaurants ↗</button></div>
  <div class="card"><span class="eyebrow">INVITE FAMILY</span><h2>👨‍👩‍👧‍👦 Share our list</h2><p class="subtle">Share a family link so everyone can see and manage the list.</p><button class="btn btn-quiet btn-sm" data-act="familyLink">Copy family invite ↗</button></div></div>
  <div class="between" style="margin:22px 0 11px"><h2 style="margin:0">Recent votes</h2><button class="btn btn-quiet btn-sm" data-act="nav" data-page="history">View all</button></div>
  ${latest.length?latest.slice(0,4).map(q=>`<div class="card"><div class="between"><div><strong>${esc(q.meal)} · ${methodName(q.method)}</strong><div class="subtle">${timeAgo(q.created_at)} · ${q.voted_count}/${q.expected_voters} voted</div></div>${pill(q)}</div><button class="btn btn-quiet btn-sm" style="margin-top:12px" data-act="openpoll" data-id="${esc(q.id)}">Open vote →</button></div>`).join(''):
- `<div class="card empty"><span class="empty-emoji">🗳️</span><h3>Your first vote is waiting</h3><p>There are no polls yet.</p><button class="btn btn-primary" data-act="nav" data-page="create">Create first vote</button></div>`}`)
+ `<div class="card empty"><span class="empty-emoji">🗳️</span><h3>Your first vote is waiting</h3><p>There are no polls yet.</p>${familyToken?`<button class="btn btn-primary" data-act="nav" data-page="create">Create first vote</button>`:''}</div>`}`)
 }
 function renderMembers(){
  if(!familyToken){setPage('home');return}
@@ -309,7 +309,7 @@ async function doAction(act,button){
  if(act==='swipeBack'){state.swipeIndex=Math.max(0,state.swipeIndex-1);render();return}
  if(act==='resetVote'){if(memberToken){await openPoll(poll.id);return}localStorage.removeItem('gw_voted_'+poll.id);state.name='';state.approvals=new Set();state.swipes={};state.swipeIndex=0;state.rank=[];render();return}
  if(act==='submitVote'){
-  state.name=$('voterName')?.value.trim()||state.name;if(!state.name)throw Error('Enter your name first.');
+  state.name=member?.name||$('voterName')?.value.trim()||state.name;if(!state.name)throw Error('Open your personal link to vote.');
   let ballot;
   if(poll.method==='approval'){
    ballot=[...state.approvals];if(ballot.length<1||ballot.length>2)throw Error('Pick one or two restaurants.');
