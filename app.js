@@ -158,7 +158,7 @@ function renderHistory(){
 }
 function renderPoll(){
  if(!poll){layout(`<div class="card empty"><span class="empty-emoji">⏳</span><p>Loading family vote…</p></div>`,{nav:false});return}
- const open=poll.status==='open',already=localStorage.getItem('gw_voted_'+poll.id)==='1';
+ const open=poll.status==='open',already=member?!!poll.voted_member_ids?.includes(member.id):localStorage.getItem('gw_voted_'+poll.id)==='1';
  if(!open)return renderResults();
  let voting='';
  if(already){voting=`<div class="card empty"><span class="empty-emoji">🎉</span><h2>You're all voted!</h2><p>Results are hidden until everyone has voted. This page updates automatically.</p><button class="btn btn-quiet" data-act="resetVote">Another person / change vote</button></div>`}
@@ -182,7 +182,7 @@ function renderPoll(){
  layout(`<div class="eyebrow">IT'S TIME TO VOTE</div><h1>${esc(poll.meal)} plans?</h1><p class="lede">${methodName(poll.method)} · ${poll.voted_count} of ${poll.expected_voters} votes in</p>
  <div class="card"><div class="between"><strong>Family vote</strong>${pill(poll)}</div><div class="progress"><span style="width:${100*poll.voted_count/poll.expected_voters}%"></span></div><p class="note">Your family's choices stay secret until the vote finishes.</p></div>
  ${voting}
- ${!already?`<div class="card"><div class="field"><label for="voterName">Your first name</label><input id="voterName" maxlength="60" autocomplete="given-name" placeholder="e.g. Dad, Shelby, Charlotte" value="${esc(state.name)}"></div><button class="btn btn-primary btn-full" data-act="submitVote" ${!ballotReady||pending||state.busy?'disabled':''}>Submit my vote ✓</button></div>`:''}
+ ${!already?member?`<div class="card"><p>Voting as <strong>${esc(member.name)}</strong></p><button class="btn btn-primary btn-full" data-act="submitVote" ${!ballotReady||pending||state.busy?'disabled':''}>Submit my vote ✓</button></div>`:`<div class="card"><p class="note">Use your personal family member link to submit a vote. Ask the family owner for yours.</p></div>`:''}
  ${familyToken?`<div class="card"><p class="subtle">Family organizer controls</p><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="copyPoll">Copy vote link</button><button class="btn btn-line btn-sm" data-act="closePoll">Close voting early</button></div></div>`:`<button class="btn btn-line btn-full" data-act="copyPoll">Copy voting link</button>`}
  `,{nav:false});
 }
@@ -319,7 +319,7 @@ async function doAction(act,button){
    ballot=state.rank.slice(0,Math.min(3,poll.options.length));
    if(ballot.some(x=>!x)||new Set(ballot).size!==ballot.length||ballot.length!==Math.min(3,poll.options.length))throw Error('Rank different restaurants in every position.');
   }
-  await safe(async()=>{await rpc('gw_vote',{p_poll_id:poll.id,p_voter_name:state.name,p_ballot:ballot});localStorage.setItem('gw_name',state.name);localStorage.setItem('gw_voted_'+poll.id,'1');await loadPoll(poll.id);if(familyToken)await loadFamily();render();toast('Your vote is in!')});return;
+  await safe(async()=>{if(!memberToken||!member)throw Error('Use your personal member link to vote');await rpc('gw_vote_as_member',{p_poll_id:poll.id,p_member_token:memberToken,p_ballot:ballot});localStorage.setItem('gw_name',state.name);localStorage.setItem('gw_voted_'+poll.id,'1');await loadPoll(poll.id);if(familyToken)await loadFamily();render();toast('Your vote is in!')});return;
  }
  if(act==='runoff'){
   const scores=window.GoodnightsVoting.tally(poll).winners;if(scores.length<2)throw Error('No runoff needed.');
@@ -358,8 +358,10 @@ app.addEventListener('touchstart',e=>{if(e.target.closest('#swipeCard'))touchX=e
 app.addEventListener('touchend',e=>{if(!e.target.closest('#swipeCard')||state.page!=='poll'||poll?.method!=='swipe')return;const dx=e.changedTouches[0].screenX-touchX;if(Math.abs(dx)>60)voteSwipe(dx>0)},{passive:true});
 async function init(){
  if(!live){demoInit();badge.textContent='LOCAL DEMO'}
- else if(params.get('family')){familyToken=params.get('family');localStorage.setItem(familyKey,familyToken)}
- if(params.get('poll')){await openPoll(params.get('poll'));return}
+ else if(params.get('member')){memberToken=params.get('member');familyToken='';localStorage.setItem(memberKey,memberToken);localStorage.removeItem(familyKey)}
+ else if(params.get('family')){familyToken=params.get('family');memberToken='';member=null;localStorage.setItem(familyKey,familyToken);localStorage.removeItem(memberKey)}
+ else if(memberToken)familyToken='';
+ if(params.get('poll')){if(memberToken)try{await loadFamily()}catch(e){toast(e.message)}await openPoll(params.get('poll'));return}
  try{await loadFamily();render()}catch(e){toast(e.message);family=null;renderWelcome()}
 }
 document.getElementById('brand').addEventListener('click',async e=>{e.preventDefault();if(familyToken){await safe(async()=>{await loadFamily();setPage('home')})}else setPage('home')});
