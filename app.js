@@ -25,7 +25,7 @@ const icon=(category='',name='')=>{
 let store, familyToken=localStorage.getItem(familyKey)||'',family=null,poll=null;
 const state={page:'home',selected:new Set(),meal:'Dinner',method:'approval',expected:4,
  name:localStorage.getItem('gw_name')||'',approvals:new Set(),swipes:{},swipeIndex:0,rank:[],
- search:'',nearby:[],nearbyBusy:false,center:null,city:'New Palestine, Indiana',
+ search:'',nearby:[],nearbyBusy:false,center:null,city:'New Palestine, Indiana',restaurantName:'',nearbyQuery:'',
  adding:false,showNearby:false,busy:false,notice:''};
 let pollTimer=null;
 function demoInit(){
@@ -125,8 +125,8 @@ function renderRestaurants(){
  const search=state.search.toLowerCase().trim(),restaurants=(family.restaurants||[]).filter(r=>(r.name+' '+r.category+' '+r.address).toLowerCase().includes(search));
  layout(`<div class="eyebrow">OUR GO-TO SPOTS</div><div class="between"><div><h1>Our restaurants.</h1><p class="lede">Your family's personal shortlist. Add any place you like.</p></div><span class="count">${family.restaurants.length} saved</span></div>
  <div class="card"><div class="between"><h2 style="margin:0">Find something good</h2><button class="btn btn-primary btn-sm" data-act="toggleAdd">＋ Add</button></div>
- ${state.adding?`<div class="field"><label for="restName">Restaurant name</label><input id="restName" maxlength="120" placeholder="e.g. Frosty Boy"></div><div class="field"><label for="restCategory">Cuisine or category</label><input id="restCategory" maxlength="80" placeholder="e.g. Burgers, Pizza, Ice cream"></div><button class="btn btn-dark btn-full" data-act="addManual">Save to family list</button><hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><h3>Find local restaurants</h3><p class="note">Search near a town or use your current location. Free results from OpenStreetMap may be incomplete.</p><div class="field"><label for="city">Town / location</label><input id="city" value="${esc(state.city)}" placeholder="New Palestine, Indiana"></div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="townSearch" ${state.nearbyBusy?'disabled':''}>🔎 Find near town</button><button class="btn btn-quiet btn-sm" data-act="gpsSearch" ${state.nearbyBusy?'disabled':''}>📍 Near me</button></div>
- ${state.nearbyBusy?'<p class="subtle">Looking for restaurants…</p>':''}${state.showNearby?`<h3 style="margin-top:20px">${state.nearby.length} nearby matches</h3>${state.nearby.length?state.nearby.map((r,i)=>`<div class="item"><div class="foodicon">${icon(r.category,r.name)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc(r.category)}${r.distance!=null?' · '+r.distance.toFixed(1)+' mi':''}</div></div><button class="btn btn-quiet btn-sm" data-act="addNearby" data-idx="${i}">+ Save</button></div>`).join(''):'<p class="subtle">No matches found here. You can add a restaurant manually above.</p>'}`:''}`:''}
+ ${state.adding?`<div class="field"><label for="restName">Restaurant name</label><input id="restName" maxlength="120" placeholder="e.g. Frosty Boy"></div><div class="field"><label for="restCategory">Cuisine or category</label><input id="restCategory" maxlength="80" placeholder="e.g. Burgers, Pizza, Ice cream"></div><button class="btn btn-dark btn-full" data-act="addManual">Save to family list</button><hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><h3>Find local restaurants</h3><p class="note">Search by restaurant name, town, or both. Leave the name blank to browse nearby places. OpenStreetMap results may be incomplete.</p><div class="field"><label for="localName">Restaurant name (optional)</label><input id="localName" maxlength="80" value="${esc(state.restaurantName)}" placeholder="e.g. Culver's or Puccini's"></div><div class="field"><label for="city">Town / location</label><input id="city" value="${esc(state.city)}" placeholder="New Palestine, Indiana"></div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="townSearch" ${state.nearbyBusy?'disabled':''}>🔎 Search restaurants</button><button class="btn btn-quiet btn-sm" data-act="gpsSearch" ${state.nearbyBusy?'disabled':''}>📍 Search near me</button></div>
+ ${state.nearbyBusy?'<p class="subtle">Looking for restaurants…</p>':''}${state.showNearby?`<h3 style="margin-top:20px">${state.nearby.length} ${state.nearbyQuery?'matching':'nearby'} restaurants${state.nearbyQuery?' for “'+esc(state.nearbyQuery)+'”':''}</h3>${state.nearby.length?state.nearby.map((r,i)=>`<div class="item"><div class="foodicon">${icon(r.category,r.name)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc(r.category)}${r.distance!=null?' · '+r.distance.toFixed(1)+' mi':''}${r.address?' · '+esc(r.address):''}</div></div>${family.restaurants.some(saved=>saved.osm_id&&saved.osm_id===r.osm_id)?'<span class="subtle">✓ Saved</span>':`<button class="btn btn-quiet btn-sm" data-act="addNearby" data-idx="${i}">+ Save</button>`}</div>`).join(''):'<p class="subtle">No matches found here. You can add a restaurant manually above.</p>'}`:''}`:''}
  </div><div class="card"><div class="field" style="margin-top:0"><label for="restaurantSearch">Filter your list</label><input id="restaurantSearch" value="${esc(state.search)}" placeholder="Search saved restaurants…"></div>
  ${restaurants.length?restaurants.map(r=>restaurantRow(r,{remove:true})).join(''):`<div class="empty"><span class="empty-emoji">🥗</span><h3>No matching restaurants</h3><p>Add a favorite or change your search.</p></div>`}</div>`)
 }
@@ -198,28 +198,51 @@ async function makePoll(ids,method=state.method,expected=state.expected){
 }
 function voteSwipe(value){if(!poll)return;const r=poll.options[state.swipeIndex];if(!r)return;state.swipes[r.id]=value;state.swipeIndex=Math.min(poll.options.length-1,state.swipeIndex+1);render()}
 function geodistance(lat1,lon1,lat2,lon2){const a=Math.PI/180,dLat=(lat2-lat1)*a,dLon=(lon2-lon1)*a,x=Math.sin(dLat/2)**2+Math.cos(lat1*a)*Math.cos(lat2*a)*Math.sin(dLon/2)**2;return 3958.8*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
-async function findNearby(lat,lon){
- state.showNearby=false;state.nearbyBusy=true;render();
+// Escape regex metacharacters and quotes so an arbitrary name stays a literal search term.
+function overpassNamePattern(name){
+ return String(name).trim().slice(0,80).replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+}
+async function findNearby(lat,lon,searchName=state.restaurantName){
+ if(!Number.isFinite(lat)||!Number.isFinite(lon))throw Error('Could not determine the search location.');
+ const term=String(searchName||'').trim();
+ state.showNearby=false;state.nearbyBusy=true;state.nearbyQuery=term;render();
  try{
-  // Overpass is volunteer-operated; throttle manual searches and provide manual entry fallback.
-  const query=`[out:json][timeout:25];(nwr(around:10000,${lat},${lon})["amenity"~"^(restaurant|fast_food|cafe|food_court)$"];);out center;`;
+  // Search only when the user taps a button. Name lookups cover 20 km; browsing covers 10 km.
+  // Overpass is volunteer-operated, so keep searches bounded and offer manual entry.
+  const around=`(around:${term?20000:10000},${lat},${lon})`;
+  const cuisine='["amenity"~"^(restaurant|fast_food|cafe|food_court|ice_cream)$"]';
+  const namePattern=overpassNamePattern(term);
+  const statements=[`nwr${around}${cuisine}${term?`["name"~"${namePattern}",i]`:''};`];
+  if(term)statements.push(`nwr${around}${cuisine}["brand"~"${namePattern}",i];`);
+  const query=`[out:json][timeout:25];(${statements.join('')});out center;`;
   const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(query)});
-  if(!res.ok)throw Error('OpenStreetMap search is temporarily busy. Try again or add restaurants manually.');
-  const data=await res.json();const all=[];const seen=new Set();
+  if(!res.ok)throw Error('Restaurant search is temporarily busy. Try again or add a restaurant manually.');
+  const data=await res.json(),all=[],seen=new Set();
   for(const el of data.elements||[]){
-   const name=el.tags?.name,latitude=el.lat??el.center?.lat,longitude=el.lon??el.center?.lon;
+   const name=el.tags?.name||el.tags?.brand,latitude=el.lat??el.center?.lat,longitude=el.lon??el.center?.lon;
    if(!name||!Number.isFinite(latitude)||!Number.isFinite(longitude))continue;
-   const key=name.toLowerCase().trim();if(seen.has(key))continue;seen.add(key);
+   // Distinct restaurant locations can share the same chain name.
+   const id=el.type+'/'+el.id;if(seen.has(id))continue;seen.add(id);
    all.push({name,category:el.tags?.cuisine||el.tags?.amenity?.replace(/_/g,' ')||'Restaurant',address:[el.tags?.['addr:housenumber'],el.tags?.['addr:street'],el.tags?.['addr:city']].filter(Boolean).join(' '),latitude,longitude,
-    osm_id:el.type+'/'+el.id,distance:geodistance(lat,lon,latitude,longitude)});
+    osm_id:id,distance:geodistance(lat,lon,latitude,longitude)});
   }
   state.nearby=all.sort((a,b)=>a.distance-b.distance).slice(0,45);state.showNearby=true;
  }finally{state.nearbyBusy=false;render()}
 }
-async function getTown(){const city=state.city.trim();if(!city)throw Error('Enter a city or town.');
+// Cache town lookups to avoid unnecessary repeat geocoding requests.
+let townCache={};try{townCache=JSON.parse(localStorage.getItem('gw_town_cache')||'{}')||{}}catch{}
+async function getTown(){
+ const city=state.city.trim();if(!city)throw Error('Enter a town, or select “Search near me”.');
+ const key=city.toLocaleLowerCase(),cached=townCache[key];
+ if(cached&&Date.now()-cached.time<30*86400000){await findNearby(cached.lat,cached.lon);return}
  const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(city)}`);
- if(!r.ok)throw Error('Location search is temporarily unavailable.');const data=await r.json();if(!data.length)throw Error('Town not found. Try “New Palestine, Indiana”.');
- await findNearby(Number(data[0].lat),Number(data[0].lon));
+ if(!r.ok)throw Error('Location search is temporarily unavailable.');
+ const data=await r.json();if(!data.length)throw Error('Town not found. Try “New Palestine, Indiana”.');
+ const lat=Number(data[0].lat),lon=Number(data[0].lon);
+ if(!Number.isFinite(lat)||!Number.isFinite(lon))throw Error('Town location could not be read.');
+ townCache[key]={lat,lon,time:Date.now()};
+ try{localStorage.setItem('gw_town_cache',JSON.stringify(townCache))}catch{}
+ await findNearby(lat,lon);
 }
 async function doAction(act,button){
  if(act==='nav'){setPage(button.dataset.page);return}
@@ -314,6 +337,7 @@ app.addEventListener('change',e=>{
 app.addEventListener('input',e=>{
  const t=e.target;if(t.id==='restaurantSearch'){state.search=t.value;const at=t.selectionStart;render();const field=$('restaurantSearch');field.focus();field.setSelectionRange(at,at)}
  else if(t.id==='city')state.city=t.value;
+ else if(t.id==='localName')state.restaurantName=t.value;
  else if(t.id==='voterName')state.name=t.value;
 });
 let touchX=0;
