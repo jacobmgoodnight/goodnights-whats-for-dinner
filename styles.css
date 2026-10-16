@@ -37,3 +37,16 @@ main{padding:22px 20px 30px}h1{font-size:clamp(33px,7vw,52px);line-height:1.05;l
  .btn-sm{min-height:44px}
  .nav button{flex-basis:30%}
 }
+
+/* Familiar faces, practice voting and readable message drafts. */
+.member-avatar{display:inline-grid;place-items:center;width:48px;height:48px;flex:0 0 48px;border-radius:50%;background:#f8e9d7;font-size:28px;overflow:hidden}
+.member-avatar img{width:100%;height:100%;object-fit:cover}.member-avatar [hidden]{display:none!important}
+.member-identity{display:flex;align-items:center;gap:12px;margin:0 0 16px;min-width:0}.member-identity>div{min-width:0;overflow-wrap:anywhere}.member-identity strong{display:block;font-size:17px}.member-identity .eyebrow{display:block;margin-bottom:4px}
+.member-profile-row{padding:18px 0;border-bottom:1px solid var(--line)}.member-profile-row:last-child{border:0}.member-profile-row .btn-row .btn{flex:1 1 80px}
+.avatar-options{display:flex;flex-wrap:wrap;gap:8px;border:1px solid var(--line);border-radius:15px;padding:12px;margin:16px 0}.avatar-options legend{font-size:13px;font-weight:800}.avatar-choice{border:2px solid transparent;background:#fff5e9;border-radius:12px;width:46px;height:46px;font-size:25px}.avatar-choice[aria-pressed="true"]{border-color:var(--orange);background:white}
+.preview-banner{background:#f0ecff;border-color:#d1c5ef}.preview-banner .eyebrow{color:#685393}
+.message-preview{font:inherit;font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;background:#faf4e9;border-radius:14px;padding:16px;margin:12px 0 16px}
+.member-invite{border-top:1px solid var(--line);padding:14px 0}.member-invite summary{display:flex;align-items:center;gap:10px;cursor:pointer;min-height:48px}.member-invite summary strong{flex:1;min-width:0;overflow-wrap:anywhere}.member-invite summary>span:last-child{font-size:12px;color:var(--muted)}.member-invite summary .member-avatar{width:38px;height:38px;flex-basis:38px;font-size:23px}.member-invite .btn-row .btn{flex:1 1 110px;text-decoration:none}
+.sharing-card a.btn{text-decoration:none}.profile-editor input[type="file"]{max-width:100%;font-size:14px}
+.item-body>.item-title,.item-body>.item-detail{display:block}
+.results-share-image{display:block;width:100%;max-width:440px;height:auto;margin:16px auto;border-radius:18px;border:1px solid var(--line)}
