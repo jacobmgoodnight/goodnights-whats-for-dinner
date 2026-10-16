@@ -14,10 +14,20 @@ test('organizer bulk selection, proximity filters and personal poll sharing',asy
  else throw Error(fn);
  return {ok:true,json:async()=>result};
  }};
- vm.createContext(context);for(const f of ['voting.js','maps.js','logos.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',f),'utf8'),context);
+ vm.createContext(context);for(const f of ['voting.js','maps.js','logos.js','family.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',f),'utf8'),context);
  const tick=()=>new Promise(r=>setImmediate(r));await tick();
  const click=async(act,data={})=>{await listeners.click({target:{closest:()=>({dataset:{act,...data}})}});await tick()};
- await click('nav',{page:'create'});await click('selectAll');assert.match(app.innerHTML,/20 selected/);
+ await click('nav',{page:'create'});
+ const beforePreview=calls.length;
+ for(const method of ['approval','swipe','ranked']){
+  await click('previewMode',{method});assert.match(app.innerHTML,/PRACTICE VOTE/);assert.match(app.innerHTML,/Practice voter/);assert.doesNotMatch(app.innerHTML,/copyMemberPoll|closePoll/);
+  if(method==='approval')listeners.change({target:{dataset:{approval:'practice-pizza'},checked:true}});
+  else if(method==='swipe'){await click('swipeYes');await click('swipeNo');await click('swipeYes')}
+  else for(const [rank,value] of ['practice-pizza','practice-burger','practice-taco'].entries())listeners.change({target:{dataset:{rank:String(rank)},value}});
+  await click('submitVote');assert.match(app.innerHTML,/THE FAMILY HAS SPOKEN/);assert.match(app.innerHTML,/PRACTICE VOTE/);
+ }
+ await click('exitPreview');assert.equal(calls.length,beforePreview);assert.match(app.innerHTML,/Start a vote/);
+ await click('selectAll');assert.match(app.innerHTML,/20 selected/);
  listeners.change({target:{dataset:{select:'r22'},checked:true}});assert.match(app.innerHTML,/20 selected/);
  await click('clear');await click('pollLocation');listeners.change({target:{id:'pollRadius',dataset:{},value:'5'}});
  assert.match(app.innerHTML,/1 shown/);assert.doesNotMatch(app.innerHTML,/data-select="r22"/);

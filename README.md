@@ -112,3 +112,15 @@ On New vote, filter saved restaurants by name, category or town. Closest to me u
 Tap a whole restaurant row, use Select all shown (up to 20), or Pick 5 for me. Filters preserve existing selections and show how many selected entries are hidden. Clear selection starts over.
 
 After creating a vote, the organizer sees Invite family to this vote. Copy link or Send link next to a member includes that member’s personal link and the current poll. Send opens the device share sheet when supported, otherwise copies the link. Send each personal link only to its intended person.
+
+## Practice voting, member photos, and text drafts
+
+On **New vote**, choose a 🧪 preview beside the voting methods. Practice approval, consensus or ranked voting, submit the practice ballot, and see its results. These previews stay in your browser and never create polls or submit real ballots.
+
+In **Members → Edit profile**, change a person's name, choose an emoji or upload a JPEG/PNG/WebP photo, and optionally save a phone number. Photos are cropped to 96×96 and compressed as small JPEGs. Photos and names appear on that member's personal voting page. Phone numbers are returned only to the organizer, not to personal-link holders. Existing personal links stay the same.
+
+Every open vote has individual invitations under **Invite family to this vote**. Expand a person to preview the message, **Text** them, **Share message** through the device share sheet, or copy the message/link. Personal invitations must go only to their intended person. After results arrive, the organizer can text/share a group-safe summary with the winner, stats and results link. **Make results image** creates a PNG announcement; save it, or share it directly when the browser supports file sharing. The image uses restaurant logos when cross-origin image loading is allowed and SVG food icons otherwise.
+
+Text opens a message draft; the organizer reviews and sends it in their messaging app. No SMS service or automatic background texting is configured. SMS body handling varies by phone/app; **Copy message** is the fallback. Normal carrier SMS/MMS charges may apply. Rich images are shared as attachments rather than embedded in plain SMS. The website never marks a message as delivered.
+
+`sql/member_profiles.sql` is the additive profiles upgrade applied to the live database. It preserves existing member tokens, RLS and token-checked RPCs. As with the other upgrades, do not rerun the historical database baseline on the live project.

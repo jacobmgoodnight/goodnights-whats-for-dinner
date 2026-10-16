@@ -19,7 +19,7 @@ const context={
 vm.createContext(context);
 // Force local demo regardless of the real production API configuration.
 vm.runInContext('window.GW_CONFIG={}',context);
-for(const file of ['voting.js','maps.js','logos.js','app.js'])
+for(const file of ['voting.js','maps.js','logos.js','family.js','app.js'])
  vm.runInContext(fs.readFileSync(path.join(ROOT,file),'utf8'),context,{filename:file});
 function tick(){return new Promise(resolve=>setImmediate(resolve))}
 async function click(act,data={}){
