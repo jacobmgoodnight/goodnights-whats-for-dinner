@@ -124,3 +124,13 @@ Every open vote has individual invitations under **Invite family to this vote**.
 Text opens a message draft; the organizer reviews and sends it in their messaging app. No SMS service or automatic background texting is configured. SMS body handling varies by phone/app; **Copy message** is the fallback. Normal carrier SMS/MMS charges may apply. Rich images are shared as attachments rather than embedded in plain SMS. The website never marks a message as delivered.
 
 `sql/member_profiles.sql` is the additive profiles upgrade applied to the live database. It preserves existing member tokens, RLS and token-checked RPCs. As with the other upgrades, do not rerun the historical database baseline on the live project.
+
+## Reliable voting and member navigation
+
+Organizers manage the family through Home, Restaurants, New vote, History and Members. Members see their own **My votes** dashboard and **Past results**, with their avatar, open polls and completed results. Finished polls are classified as results as soon as the expected number of votes arrives.
+
+On an open poll, **Change my vote** restores only that member's saved choices. Edit and **Save vote changes**, or choose **Keep my saved vote** to cancel. Existing choices continue to count until the replacement is saved. Votes cannot be changed after voting finishes. `sql/member_ballot_read.sql` adds the token-checked own-ballot reader; it never returns another member's ballot.
+
+Write actions show a pending label and disable controls until they finish. Repeated taps cannot start a second simultaneous write, and errors release the controls for retry without clearing the current form. This prevents duplicate taps within the current app session; it does not provide cross-tab or server-side request idempotency.
+
+The organizer home now directs invitations to personal member links. The private organizer link is available only in **Members → Organizer access backup**, with its management permissions explicitly stated. Share personal links with voters; save the organizer link for an organizer.
