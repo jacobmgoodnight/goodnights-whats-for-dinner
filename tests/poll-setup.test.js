@@ -8,7 +8,7 @@ test('organizer bulk selection, proximity filters and personal poll sharing',asy
  const context={console,URL,crypto:require('node:crypto').webcrypto,setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,clearInterval(){},location:{href:'https://example.test/?family=fixture-owner'},history:{replaceState(){}},localStorage:{getItem:k=>store[k],setItem:(k,v)=>store[k]=v,removeItem:k=>delete store[k]},document:{getElementById:id=>dom[id]},window:{GW_CONFIG:{supabaseUrl:'https://fixture.test',publishableKey:'fixture'},scrollTo(){}},navigator:{clipboard:{writeText:async x=>copied.push(x)},geolocation:{getCurrentPosition:ok=>ok({coords:{latitude:40,longitude:-86}})}},fetch:async(url,request)=>{
  const fn=url.split('/').pop(),p=JSON.parse(request.body);calls.push({fn,p});let result;
  if(fn==='gw_get_family')result={name:'Fixture',restaurants,polls:[]};
- else if(fn==='gw_create_poll'){options=restaurants.filter(r=>p.p_restaurant_ids.includes(r.id));result='fixture-poll'}
+ else if(fn==='gw_create_poll_for_members'){options=restaurants.filter(r=>p.p_restaurant_ids.includes(r.id));result='fixture-poll'}
  else if(fn==='gw_get_poll')result={id:'fixture-poll',status:'open',method:'approval',meal:'Dinner',options,expected_voters:4,voted_count:0};
  else if(fn==='gw_list_members')result=[{id:'member-a',name:'Fixture member',token:'fixture-personal'}];
  else throw Error(fn);
@@ -32,8 +32,9 @@ test('organizer bulk selection, proximity filters and personal poll sharing',asy
  await click('clear');await click('pollLocation');listeners.change({target:{id:'pollRadius',dataset:{},value:'5'}});
  assert.match(app.innerHTML,/1 shown/);assert.doesNotMatch(app.innerHTML,/data-select="r22"/);
  await click('resetPollFilters');listeners.input({target:{id:'pollSearch',value:'Nearby Town',selectionStart:11}});await click('selectAll');assert.match(app.innerHTML,/2 selected/);
+ await click('createNext');await click('createNext');await click('createNext');
  await click('createPoll');assert.match(app.innerHTML,/Invite family to this vote/);assert.match(app.innerHTML,/Fixture member/);
  await click('copyMemberPoll',{id:'member-a'});const u=new URL(copied[0]);assert.equal(u.searchParams.get('member'),'fixture-personal');assert.equal(u.searchParams.get('poll'),'fixture-poll');assert.equal(u.searchParams.has('family'),false);
  await click('shareMemberPoll',{id:'member-a'});assert.equal(copied.length,2);
- assert.equal(calls.find(c=>c.fn==='gw_create_poll').p.p_restaurant_ids.length,2);
+ assert.equal(calls.find(c=>c.fn==='gw_create_poll_for_members').p.p_restaurant_ids.length,2);
 });

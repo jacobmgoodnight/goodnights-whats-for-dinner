@@ -14,5 +14,10 @@ test('SMS drafts encode message content and validate phone recipients',()=>{
  const text='🍽️ Vote\nhttps://example.test/?member=a&poll=b';assert.equal(decodeURIComponent(F.sms('+1 (555) 123-4567',text).split('body=')[1]),text);assert.match(F.sms('',text,true),/^sms:&body=/);assert.throws(()=>F.phone('123?body=bad'));assert.throws(()=>F.phone('12'));assert.equal(F.phone(''),'');
 });
 test('avatars allow only chosen emojis and small JPEG data, with a safe fallback',()=>{
- assert.equal(F.avatar('😎'),'😎');assert.equal(F.avatar('data:image/jpeg;base64,/9j/AA=='),'data:image/jpeg;base64,/9j/AA==');for(const a of ['https://example.test/photo','data:image/svg+xml,<svg onload=alert(1)>','<img src=x onerror=x>','data:image/jpeg;base64,'+'A'.repeat(24000)])assert.equal(F.avatar(a),'🙂');
+ assert.equal(F.avatar('😎'),'😎');assert.equal(F.avatar('data:image/jpeg;base64,/9j/AA=='),'data:image/jpeg;base64,/9j/AA==');for(const a of ['https://example.test/photo','data:image/svg+xml,<svg onload=alert(1)>','<img src=x onerror=x>','data:image/jpeg;base64,'+'A'.repeat(120000)])assert.equal(F.avatar(a),'🙂');
 });
+
+test('iMessage drafts accept email contacts and preserve private link encoding',()=>{assert.equal(F.contact(' family+test@icloud.com '),'family+test@icloud.com');assert.match(F.sms('family+test@icloud.com','Hi 👋',true),/^sms:family\+test@icloud.com&body=/);for(const value of ['bad@','x@host','x@y.com?body=bad','x\"@y.com'])assert.throws(()=>F.contact(value));assert.equal(F.contact('+1 (555) 123-4567'),'+15551234567')});
+test('clearer uploaded avatars can exceed the previous 24k limit',()=>{const data='data:image/jpeg;base64,'+'A'.repeat(60000);assert.equal(F.avatar(data),data)});
+
+test('group invitation messages use a shared entry link without personal tokens',()=>{const text=F.groupInvite({meal:'Dinner',method:'approval',expected_voters:4,options:[{id:'a'},{id:'b'}]},'https://example.test/?poll=vote');assert.match(text,/4 people invited/);assert.match(text,/2 places/);assert.match(text,/usual voting phone/);assert.doesNotMatch(text,/member=|family=/)});
