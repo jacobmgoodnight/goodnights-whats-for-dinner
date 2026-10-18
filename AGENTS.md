@@ -38,3 +38,11 @@ https://jacobmgoodnight.github.io/goodnights-whats-for-dinner/
 2. Improve mobile navigation (five tabs may wrap), and add a non-secret owner settings screen.
 3. Review security of token-based RPCs; explore optional passwordless sign-in without adding ongoing costs.
 4. Improve location deduplication and restaurateur image/website attribution, keeping manual overrides.
+
+## Guided polls and profile invariants
+- New polls use `gw_create_poll_for_members`; selected IDs are in RLS-protected `gw_poll_members`. The count is derived from selected active members. Historical polls have `roster_enabled=false` and keep their original head-count behavior.
+- `gw_get_poll_people` requires an organizer or same-family member token. It returns status/name/avatar only, never contacts, invite tokens or ballots. Public `gw_get_poll` must not reveal participant identities. Routine status refreshes set `p_include_avatars=false` and reuse cached images.
+- Profile photos are compressed to 256×256 JPEG data URLs, up to 120,000 characters. Old photos remain valid. The existing `phone` field accepts a phone number or iMessage email and remains organizer-only.
+- Texting stays user-sent drafts. Do not imply automatic notification or delivery, install a messaging provider, or add costs without new user direction.
+- Additive SQL for this flow is in `sql/guided_poll_participants.sql`; it is already applied to the live database.
+- Group invitations share a token-free `?poll=` entry URL. Reuse a stored member identity, or verify a pasted same-site personal link before saving it. Never publish member tokens in a group invitation or public chooser.

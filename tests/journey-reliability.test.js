@@ -14,7 +14,7 @@ async function harness({owner=false,method='approval',saved=false}={}){
   else if(fn==='gw_member_has_voted')result=ballot!==null;
   else if(fn==='gw_get_my_ballot')result=ballot;
   else if(fn==='gw_list_members')result=[{id:'member-1',name:'Taylor',token:'fixture-personal'}];
-  else if(fn==='gw_create_poll'){if(createHook)await createHook();result='poll-1'}
+  else if(fn==='gw_create_poll_for_members'){if(createHook)await createHook();result='poll-1'}
   else if(fn==='gw_vote_as_member'){if(submitHook)await submitHook();ballot=JSON.parse(JSON.stringify(p.p_ballot));result={ok:true}}
   else throw Error(fn);
   return {ok:true,json:async()=>result};
@@ -25,8 +25,9 @@ async function harness({owner=false,method='approval',saved=false}={}){
 }
 test('duplicate creation is blocked while pending, and failed creation can be retried',async()=>{
  const h=await harness({owner:true});await h.click('nav',{page:'create'});for(const id of ['a','b'])h.listeners.change({target:{dataset:{select:id},checked:true}});
- let release;h.setCreateHook(()=>new Promise(resolve=>release=resolve));const first=h.click('createPoll');await h.click('createPoll');assert.equal(h.calls.filter(c=>c.fn==='gw_create_poll').length,1);release();await first;
- await h.click('nav',{page:'create'});h.setCreateHook(async()=>{throw Error('Network unavailable')});await h.click('createPoll');assert.match(h.app.innerHTML,/Start a vote/);h.setCreateHook(null);await h.click('createPoll');assert.equal(h.calls.filter(c=>c.fn==='gw_create_poll').length,3);
+ await h.click('createNext');await h.click('createNext');await h.click('createNext');
+ let release;h.setCreateHook(()=>new Promise(resolve=>release=resolve));const first=h.click('createPoll');await h.click('createPoll');assert.equal(h.calls.filter(c=>c.fn==='gw_create_poll_for_members').length,1);release();await first;
+ await h.click('nav',{page:'create'});await h.click('createNext');await h.click('createNext');await h.click('createNext');h.setCreateHook(async()=>{throw Error('Network unavailable')});await h.click('createPoll');assert.match(h.app.innerHTML,/Start a vote/);h.setCreateHook(null);await h.click('createPoll');assert.equal(h.calls.filter(c=>c.fn==='gw_create_poll_for_members').length,3);
 });
 for(const method of ['approval','swipe','ranked'])test('saved '+method+' ballot can be restored, canceled and replaced once',async()=>{
  const h=await harness({method,saved:true});assert.match(h.app.innerHTML,/Change my vote/);await h.click('resetVote');assert.match(h.app.innerHTML,/Editing your saved vote/);assert.match(h.app.innerHTML,/Save vote changes/);
@@ -42,7 +43,7 @@ test('failed vote updates preserve the editing state and permit retry; closed po
 });
 test('members return from results to their dashboard and never see organizer navigation',async()=>{
  const h=await harness({saved:true});h.close();await h.click('openpoll',{id:'poll-1'});await h.click('goHome');assert.match(h.app.innerHTML,/Your family votes/);assert.match(h.app.innerHTML,/Taylor/);assert.match(h.app.innerHTML,/Recent results/);assert.doesNotMatch(h.app.innerHTML,/Create our family|New vote|data-page="members"|data-page="restaurants"/);
- await h.click('nav',{page:'create'});assert.match(h.app.innerHTML,/Your family votes/);await h.click('createPoll');assert.equal(h.calls.filter(c=>c.fn==='gw_create_poll').length,0);
+ await h.click('nav',{page:'create'});assert.match(h.app.innerHTML,/Your family votes/);await h.click('createPoll');assert.equal(h.calls.filter(c=>c.fn==='gw_create_poll_for_members').length,0);
  await h.click('openpoll',{id:'poll-1'});await h.listeners.brand({preventDefault(){}});await tick();assert.match(h.app.innerHTML,/Your family votes/);
 });
 test('home invitations are personal; organizer backup is explicitly labeled in Members',async()=>{

@@ -5,7 +5,7 @@ A free, mobile-first restaurant voting app for the Goodnight family. No framewor
 ## What this version does
 
 - Maintain your own family restaurant list. Add any restaurant manually, or optionally find restaurants near a town or current location through public OpenStreetMap services.
-- Create **Lunch** or **Dinner** polls (2–20 restaurants; 1–20 expected voters).
+- Create **Lunch** or **Dinner** polls (2–20 restaurants; choose 1–20 participating family members).
 - Choose from **Approval** (pick up to 2), **Swipe/Consensus** (yes/no for each), and **Ranked choice** (rank top 3; instant-runoff tally).
 - Set up named family members in the **Members** tab. Each member has a reusable personal voting link; their ballots are associated with that member, not a name they type.
 - Hide the results until all expected votes arrive or someone with the family link closes the vote early. View history, and run a follow-up vote when there's a tie.
@@ -117,7 +117,7 @@ After creating a vote, the organizer sees Invite family to this vote. Copy link 
 
 On **New vote**, choose a 🧪 preview beside the voting methods. Practice approval, consensus or ranked voting, submit the practice ballot, and see its results. These previews stay in your browser and never create polls or submit real ballots.
 
-In **Members → Edit profile**, change a person's name, choose an emoji or upload a JPEG/PNG/WebP photo, and optionally save a phone number. Photos are cropped to 96×96 and compressed as small JPEGs. Photos and names appear on that member's personal voting page. Phone numbers are returned only to the organizer, not to personal-link holders. Existing personal links stay the same.
+In **Members → Edit profile**, change a person's name, choose an emoji or upload a JPEG/PNG/WebP photo, and optionally save a phone number or iMessage email. Photos are cropped to 256×256 and compressed as clear JPEGs. Photos and names appear on that member's personal voting page. Phone numbers are returned only to the organizer, not to personal-link holders. Existing personal links stay the same.
 
 Every open vote has individual invitations under **Invite family to this vote**. Expand a person to preview the message, **Text** them, **Share message** through the device share sheet, or copy the message/link. Personal invitations must go only to their intended person. After results arrive, the organizer can text/share a group-safe summary with the winner, stats and results link. **Make results image** creates a PNG announcement; save it, or share it directly when the browser supports file sharing. The image uses restaurant logos when cross-origin image loading is allowed and SVG food icons otherwise.
 
@@ -134,3 +134,29 @@ On an open poll, **Change my vote** restores only that member's saved choices. E
 Write actions show a pending label and disable controls until they finish. Repeated taps cannot start a second simultaneous write, and errors release the controls for retry without clearing the current form. This prevents duplicate taps within the current app session; it does not provide cross-tab or server-side request idempotency.
 
 The organizer home now directs invitations to personal member links. The private organizer link is available only in **Members → Organizer access backup**, with its management permissions explicitly stated. Share personal links with voters; save the organizer link for an organizer.
+
+
+## Guided planning, familiar faces and iMessage
+
+New votes use **Places → People → Method → Review & invite**, with a bottom action bar that remains visible. Select people by photo/name; their number determines the expected vote count. Only selected members can cast ballots in a new poll. Existing polls keep their original voting rules. Runoffs retain the active participants from the prior vote.
+
+Authenticated organizer/member links show the selected participants, larger avatars, and a compact **Waiting on…** row. Expand family status for details. Organizers can open individual reminder drafts for people who have not voted. Results show the family faces again, plus the winning restaurant's logo, address and **Open in Maps** action. Participant names/photos require a valid family credential; public result links do not expose the roster, contacts, personal invite tokens or individual ballots before voting finishes.
+
+New photo uploads are **256×256 JPEGs**, usually smaller than the original and capped at 120,000 text characters. Previous 96×96 images remain valid; reupload the original photo to gain clarity. Routine status refreshes omit photos and reuse the images already loaded in the browser.
+
+**Phone or iMessage email** accepts an existing phone number or an email such as `name@icloud.com`. The email must be enabled for iMessage on the recipient's Apple account. The app opens a Messages draft; availability and draft-body support vary by device. Use Share/Copy if the link cannot open your messaging app. Apple documents email recipients for Messages URLs in its [messaging app documentation](https://developer.apple.com/documentation/messages/preparing-your-app-to-be-the-default-messaging-app). Contacts remain organizer-only in the existing `phone` database field for compatibility.
+
+**Automatic texting remains off**, as requested. Invitations, reminders and results are free draft/share actions; the organizer still reviews and sends them. No delivery service, paid account, background SMS or iMessage relay is configured.
+
+Restaurants now opens with your saved favorites. **Add restaurant** reveals discovery and manual/Google Maps entry. Filtering or closing/reopening this area preserves unsaved details in the current session. Checkbox and ranking changes retain keyboard focus. Ballot actions stay visible while voting, with a count and an explanation when submission is disabled.
+
+`sql/guided_poll_participants.sql` records the applied additive upgrade: the private `gw_poll_members` table, token-checked creation/status functions, selected-member enforcement for new polls, and improved avatar/contact validation. Do not rerun the original baseline on the live project.
+
+
+### Starting a vote in the family group chat
+
+Every new vote offers **Text group invite**, **Share group invite**, and **Copy group invite** above individual invitations. Choose the existing family thread in Messages/share sheet. The shared entry URL contains only the poll ID, never personal or organizer tokens, contacts or participant photos.
+
+On a phone already connected to a personal member link, the group entry opens as that person. A new phone shows **Connect your personal link**: paste the private member link once. The app verifies the token and family before connecting the phone; organizer links and links for other sites are rejected. A valid family member who was not selected sees an explanation and cannot cast a ballot. Individual personal invitations remain available when onboarding someone for the first time.
+
+Group invitations, reminders and results are still drafts for you to send. The app does not automatically send to a group or promise delivery.

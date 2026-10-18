@@ -29,6 +29,9 @@ async function click(act,data={}){
  await tick();
  assert.match(html.innerHTML,/So\.\.\. what's for dinner/);
  await click('nav',{page:'restaurants'});
+ assert.match(html.innerHTML,/Your saved favorites/);
+ assert.doesNotMatch(html.innerHTML,/Find local restaurants/);
+ await click('toggleDiscovery');
  assert.match(html.innerHTML,/Find local restaurants/);
  assert.match(html.innerHTML,/Find it on Google Maps/);
  assert.match(html.innerHTML,/class="logo-symbol"|data-restaurant-logo/);
@@ -49,25 +52,27 @@ async function click(act,data={}){
  for(const id of opts.slice(0,2))
   listeners.change({target:{dataset:{select:id},checked:true}});
  await tick();
+ await click('createNext');await click('createNext');await click('createNext');
  await click('createPoll');
- assert.match(html.innerHTML,/Pick up to 2/);
+ assert.match(html.innerHTML,/On the menu/);
  assert.match(html.innerHTML,/personal member link|personal family member link/);
  // A vertical scroll must not answer a consensus card, even with horizontal drift.
  await click('nav',{page:'create'});
  listeners.change({target:{name:'method',value:'swipe',dataset:{}}});
- await click('createPoll');
- assert.match(html.innerHTML,/0 of 2 answered/);
+ await click('previewMode',{method:'swipe'});
+ assert.match(html.innerHTML,/0 of 3 answered/);
  const target={closest:()=>true};
  const touch=(screenX,screenY)=>({identifier:1,screenX,screenY});
  const start=()=>listeners.touchstart({target,touches:[touch(0,0)],changedTouches:[touch(0,0)]});
  start();listeners.touchend({target,changedTouches:[touch(80,180)]});
- assert.match(html.innerHTML,/0 of 2 answered/);
+ assert.match(html.innerHTML,/0 of 3 answered/);
  start();listeners.touchcancel();listeners.touchend({target,changedTouches:[touch(100,0)]});
- assert.match(html.innerHTML,/0 of 2 answered/);
+ assert.match(html.innerHTML,/0 of 3 answered/);
  start();listeners.touchend({target,changedTouches:[touch(100,10)]});
- assert.match(html.innerHTML,/1 of 2 answered/);
+ assert.match(html.innerHTML,/1 of 3 answered/);
  await click('swipeNo');
- assert.match(html.innerHTML,/2 of 2 answered/);
+ await click('swipeNo');
+ assert.match(html.innerHTML,/3 of 3 answered/);
  assert.match(html.innerHTML,/All restaurants answered/);
  console.log('App smoke passed: logo visuals, restaurant discovery, poll creation and member-only voting UI');
 })().catch(e=>{console.error(e);process.exitCode=1});
