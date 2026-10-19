@@ -1,22 +1,22 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const tick=()=>new Promise(r=>setImmediate(r));
-async function setup({owner=true,memberId='m0',failPeople=false,anonymous=false,method='approval',allowHome=true,group=false,saved=false,welcome=false}={}){
- const calls=[],shares=[],listeners={},store={},nodes={},timers=[];const photo='data:image/jpeg;base64,/9j/AAA=';
+async function setup({owner=true,memberId='m0',failPeople=false,anonymous=false,method='approval',allowHome=true,group=false,saved=false,welcome=false,sharedStore={},pollId='p1',cuisine='',familyId='family-fixture',raceVote=false,pizzaOnly=false}={}){
+ const calls=[],shares=[],listeners={},store=sharedStore,nodes={},timers=[];const photo='data:image/jpeg;base64,/9j/AAA=';
  const people=[{id:'m0',name:'Taylor',avatar:photo,token:anonymous?'ab'.repeat(24):'fixture-taylor',phone:'taylor@icloud.com',active:true},{id:'m1',name:'Morgan',avatar:'🦊',token:'fixture-morgan',phone:'+15551234567',active:true},{id:'m2',name:'Sam',avatar:'🏀',token:'fixture-sam',phone:'',active:true}];
- const restaurants=[{id:'r0',name:'Pizza night',category:'Pizza',address:'100 Main St, Town'},{id:'r1',name:'Taco time',category:'Mexican',address:'Town'}];
+ const restaurants=[{id:'r0',name:'Pizza night',category:'Pizza',address:'100 Main St, Town'},{id:'r1',name:pizzaOnly?'Another pizza place':'Taco time',category:pizzaOnly?'Pizza':'Mexican',address:'Town'}];
  let chosen=['m0','m1'],voted=new Set(saved?[memberId]:[]),statusError=failPeople,confirmResult=true,ineligibleOverride=false;let settings={allow_member_home:allowHome,group_join_token:group?'fixture-group':null};
- const current=()=>({id:'p1',meal:'Dinner',method,allow_member_home:settings.allow_member_home,status:voted.size>=chosen.length?'closed':'open',expected_voters:chosen.length,voted_count:voted.size,roster_enabled:true,options:restaurants,ballots:voted.size>=chosen.length?[...voted].map(()=>['r0']):null});
+ const current=()=>({id:pollId,cuisine,meal:'Dinner',method,allow_member_home:settings.allow_member_home,status:voted.size>=chosen.length?'closed':'open',expected_voters:chosen.length,voted_count:voted.size,roster_enabled:true,options:restaurants,ballots:voted.size>=chosen.length?[...voted].map(()=>['r0']):null});
  const family=()=>({name:'Fixture',restaurants,polls:[current()]});const app={innerHTML:'',addEventListener:(n,f)=>listeners[n]=f};
- const ctx={URL,crypto:require('node:crypto').webcrypto,console:{error(){},log(){}},setTimeout:()=>0,clearTimeout(){},setInterval:f=>{timers.push(f);return timers.length},clearInterval(){},window:{GW_CONFIG:{supabaseUrl:'https://fixture.test',publishableKey:'fixture'},scrollTo(){}},location:{href:welcome?'https://example.test/':group&&!owner?'https://example.test/?poll=p1&join=fixture-group':anonymous?'https://example.test/?poll=p1':owner?'https://example.test/?family=fixture-owner':'https://example.test/?member='+people.find(p=>p.id===memberId).token+'&poll=p1',pathname:'/'},confirm:()=>confirmResult,history:{replaceState(){}},localStorage:{getItem:k=>store[k],setItem:(k,v)=>store[k]=v,removeItem:k=>delete store[k]},document:{getElementById:id=>({app,modeBadge:{},brand:{addEventListener(){}},toast:{classList:{add(){},remove(){}}}}[id]||nodes[id])},navigator:{share:async data=>shares.push(data),clipboard:{writeText:async t=>shares.push({text:t})}},fetch:async(url,request)=>{
+ const ctx={URL,crypto:require('node:crypto').webcrypto,console:{error(){},log(){}},setTimeout:()=>0,clearTimeout(){},setInterval:f=>{timers.push(f);return timers.length},clearInterval(){},window:{GW_CONFIG:{supabaseUrl:'https://fixture.test',publishableKey:'fixture'},scrollTo(){}},location:{href:(welcome?'https://example.test/':group&&!owner?'https://example.test/?poll=p1&join=fixture-group':anonymous?'https://example.test/?poll=p1':owner?'https://example.test/?family=fixture-owner':'https://example.test/?member='+people.find(p=>p.id===memberId).token+'&poll=p1').replace(/poll=p1/g,'poll='+pollId),pathname:'/'},confirm:()=>confirmResult,history:{replaceState(){}},localStorage:{getItem:k=>store[k]??null,key:i=>Object.keys(store)[i]??null,get length(){return Object.keys(store).length},setItem:(k,v)=>store[k]=v,removeItem:k=>delete store[k]},document:{getElementById:id=>({app,modeBadge:{},brand:{addEventListener(){}},toast:{classList:{add(){},remove(){}}}}[id]||nodes[id])},navigator:{share:async data=>shares.push(data),clipboard:{writeText:async t=>shares.push({text:t})}},fetch:async(url,request)=>{
   const fn=url.split('/').pop(),p=JSON.parse(request.body);calls.push({fn,p});let result;
-  if(fn==='gw_get_family')result=family();else if(fn==='gw_list_members')result=people;
+  if(fn==='gw_get_family')result=family();else if(fn==='gw_list_members')result=people.filter(m=>m.active!==false);
   else if(fn==='gw_get_member'){const m=people.find(m=>m.token===p.p_member_token);result={id:m.id,name:m.name,avatar:m.avatar,family:family()}}
   else if(fn==='gw_poll_settings'){if(p.p_allow_member_home!==undefined)settings.allow_member_home=p.p_allow_member_home;if(p.p_group_join!==undefined)settings.group_join_token=p.p_group_join?'fixture-group':null;result=settings}
-  else if(fn==='gw_delete_polls')result=1;
-  else if(fn==='gw_group_poll'){if(p.p_action==='people')result={rostered:true,eligible:chosen.includes(p.p_member_id),people:people.filter(m=>chosen.includes(m.id)).map(m=>({id:m.id,name:m.name,avatar:p.p_include_avatars===false?null:m.avatar,active:true,voted:voted.has(m.id)}))};else if(p.p_action==='identity'){const m=people.find(m=>m.id===p.p_member_id);result={id:m.id,name:m.name,avatar:m.avatar}}else if(p.p_action==='has_voted')result=voted.has(p.p_member_id);else if(p.p_action==='vote'){voted.add(p.p_member_id);result={ok:true}}}
+  else if(fn==='gw_delete_polls')result=1;else if(fn==='gw_rotate_member')result=true;else if(fn==='gw_remove_member'){people.find(m=>m.id===p.p_member_id).active=false;result=true}
+  else if(fn==='gw_group_poll'){if(p.p_action==='people')result={family_id:familyId,rostered:true,eligible:chosen.includes(p.p_member_id),people:people.filter(m=>chosen.includes(m.id)).map(m=>({id:m.id,name:m.name,avatar:p.p_include_avatars===false?null:m.avatar,active:true,voted:voted.has(m.id)}))};else if(p.p_action==='identity'){if(raceVote)voted.add(p.p_member_id);const m=people.find(m=>m.id===p.p_member_id);result={id:m.id,name:m.name,avatar:m.avatar}}else if(p.p_action==='has_voted')result=voted.has(p.p_member_id);else if(p.p_action==='vote'){voted.add(p.p_member_id);result={ok:true}}}
   else if(fn==='gw_get_poll')result=current();else if(fn==='gw_member_has_voted')result=voted.has(memberId);
   else if(fn==='gw_get_poll_people'){if(statusError)throw Error('Unavailable');result={rostered:true,eligible:chosen.includes(memberId)&&!owner&&!ineligibleOverride,people:people.filter(m=>chosen.includes(m.id)).map(m=>({id:m.id,name:m.name,avatar:p.p_include_avatars?m.avatar:null,active:true,voted:voted.has(m.id)}))}}
-  else if(fn==='gw_create_poll_configured'){chosen=p.p_member_ids;voted=new Set();result='p1'}else if(fn==='gw_vote_as_member'){voted.add(memberId);result={ok:true}}else throw Error(fn);
+  else if(fn==='gw_create_poll_configured'||fn==='gw_create_poll_themed'){chosen=p.p_member_ids;voted=new Set();result='p1'}else if(fn==='gw_vote_as_member'){voted.add(memberId);result={ok:true}}else throw Error(fn);
   return {ok:true,json:async()=>result};
  }};
  vm.createContext(ctx);for(const f of ['voting.js','maps.js','logos.js','family.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',f),'utf8'),ctx);for(let i=0;i<4;i++)await tick();
@@ -48,10 +48,10 @@ test('group invites contain no personal credentials, and new phones connect a ve
 
 test('waiting panel follows the ballot, member copy link is absent and home navigation can be hidden',async()=>{
  const h=await setup({owner:false,allowHome:false});const html=h.app.innerHTML;
- assert.ok(html.indexOf('data-approval=')<html.indexOf('Waiting on…'));
+ assert.ok(html.indexOf('data-approval=')<html.indexOf('Waiting on'));
  assert.doesNotMatch(html,/Copy voting link|← My votes|data-act="copyPoll"/);
  await h.click('goHome');assert.match(h.app.innerHTML,/data-approval=/);
- assert.match(html,/waiting-title[\s\S]*Waiting on…[\s\S]*waiting-dots/);assert.doesNotMatch(html,/Checks for votes|View family status/);
+ assert.match(html,/waiting-title[\s\S]*Waiting on[\s\S]*waiting-dots/);assert.doesNotMatch(html,/Checks for votes|View family status/);
 });
 test('saved votes take precedence over an ineligible status message',async()=>{
  const h=await setup({owner:false,saved:true});h.forceIneligible();await h.pollTick();assert.match(h.app.innerHTML,/You're all voted!/);assert.doesNotMatch(h.app.innerHTML,/sitting this one out/);
@@ -102,4 +102,28 @@ test('members get compact voted checks and text sharing, while only organizers g
 test('fresh installed-app entry verifies a same-site personal invitation before storing identity',async()=>{
  const h=await setup({owner:false,anonymous:true,welcome:true});assert.match(h.app.innerHTML,/Already have an invitation/);h.nodes.joinToken={value:'https://elsewhere.test/?member='+'ab'.repeat(24)};await h.click('join');assert.equal(h.calls.filter(c=>c.fn==='gw_get_member').length,0);assert.equal(h.store.goodnights_member_token,undefined);
  h.nodes.joinToken.value='https://example.test/?member='+'ab'.repeat(24);await h.click('join');assert.equal(h.store.goodnights_member_token,'ab'.repeat(24));assert.match(h.app.innerHTML,/Your family votes/);assert.match(h.app.innerHTML,/Add Goodnights to your phone/);
+});
+test('group name preference survives new poll URLs only within the same invited family',async()=>{
+ const first=await setup({owner:false,group:true});await first.click('chooseGroupMember',{id:'m0'});assert.equal(first.store['gw_group_last_person_family-fixture'],'m0');
+ const second=await setup({owner:false,group:true,pollId:'p2',sharedStore:first.store});assert.match(second.app.innerHTML,/data-approval=/);assert.doesNotMatch(second.app.innerHTML,/Who's voting/);assert.ok(second.store.gw_group_vote_p2);
+ const other=await setup({owner:false,group:true,pollId:'p3',familyId:'another-family',sharedStore:first.store});assert.match(other.app.innerHTML,/Who's voting/);
+ await second.click('changeGroupMember');assert.match(second.app.innerHTML,/Who's voting/);assert.equal(second.store['gw_group_last_person_family-fixture'],'');
+});
+test('already-voted group names are disabled and a stale picker cannot select a newly voted name',async()=>{
+ const h=await setup({owner:false,group:true});h.vote('m0');await h.pollTick();assert.match(h.app.innerHTML,/data-id="m0" disabled aria-disabled="true"/);const before=h.calls.filter(c=>c.fn==='gw_group_poll'&&c.p.p_action==='identity').length;await h.click('chooseGroupMember',{id:'m0'});assert.equal(h.calls.filter(c=>c.fn==='gw_group_poll'&&c.p.p_action==='identity').length,before);
+ const race=await setup({owner:false,group:true,raceVote:true});await race.click('chooseGroupMember',{id:'m0'});assert.match(race.app.innerHTML,/Who's voting/);assert.match(race.app.innerHTML,/data-id="m0" disabled/);assert.equal(race.store['gw_group_last_person_family-fixture'],undefined);
+});
+test('themed polls persist the organizer cuisine and show it on member pages',async()=>{
+ const owner=await setup({pizzaOnly:true});await owner.click('nav',{page:'create'});await owner.click('cuisine',{cuisine:'pizza'});await owner.click('createNext');await owner.click('createNext');await owner.click('createNext');await owner.click('createPoll');const create=owner.calls.find(c=>c.fn==='gw_create_poll_themed');assert.equal(create.p.p_cuisine,'pizza');
+ const member=await setup({owner:false,cuisine:'mexican'});assert.match(member.app.innerHTML,/🌮 Mexican night/);assert.match(member.app.innerHTML,/taco ’bout/);member.vote('m0');member.vote('m1');await member.pollTick();assert.match(member.app.innerHTML,/🌮 MEXICAN NIGHT RESULTS/);
+});
+test('member management uses separate guarded actions instead of a command prompt',async()=>{
+ const h=await setup();await h.click('nav',{page:'members'});assert.doesNotMatch(h.app.innerHTML,/iMessage email saved|Text number saved|Link \/ remove/);assert.match(h.app.innerHTML,/Reset personal link/);assert.match(h.app.innerHTML,/Remove member/);
+ h.setConfirm(false);await h.click('resetMemberLink',{id:'m0'});assert.equal(h.calls.filter(c=>c.fn==='gw_rotate_member').length,0);h.setConfirm(true);await h.click('resetMemberLink',{id:'m0'});assert.equal(h.calls.filter(c=>c.fn==='gw_rotate_member').length,1);await h.click('removeMember',{id:'m1'});assert.equal(h.calls.filter(c=>c.fn==='gw_remove_member').length,1);
+ const member=await setup({owner:false});await member.click('resetMemberLink',{id:'m0'});await member.click('removeMember',{id:'m0'});assert.equal(member.calls.filter(c=>c.fn==='gw_rotate_member'||c.fn==='gw_remove_member').length,0);
+});
+
+test('older per-poll name memories migrate only when there is one unambiguous invited identity',async()=>{
+ const same={gw_group_vote_old:JSON.stringify({token:'old-scoped',memberId:'m0'})};const h=await setup({owner:false,group:true,pollId:'next',sharedStore:same});assert.match(h.app.innerHTML,/data-approval=/);assert.equal(h.store['gw_group_last_person_family-fixture'],'m0');await h.click('changeGroupMember');assert.match(h.app.innerHTML,/Who's voting/);
+ const shared={gw_group_vote_old:JSON.stringify({token:'old',memberId:'m0'}),gw_group_vote_other:JSON.stringify({token:'other',memberId:'m1'})};const ambiguous=await setup({owner:false,group:true,pollId:'next',sharedStore:shared});assert.match(ambiguous.app.innerHTML,/Who's voting/);
 });
