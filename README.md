@@ -98,6 +98,20 @@ For more rigorous identity verification, strong abuse protection, or a larger pu
 
 No `npm install` or JavaScript build system is required.
 
+## A calmer ballot and optional family group entry
+
+**Pick 5 for me** now sits beside the restaurant filters. In **New vote → Review → Voting experience**, the organizer can hide **My votes** navigation while a person is on this vote or its results. This is a convenience setting; personal links still work normally. Existing open polls can change the same preferences under **Family organizer controls → Voting options**.
+
+The optional **group invitation avatar/name picker** lets everyone use the same invitation from the family chat: open it, tap your own avatar/name, and vote. The phone remembers that selection for this poll. Anyone with that invitation can see the invited names/photos and submit once as an invited person, so enable it only for a trusted family group. It does not prove identity. Existing personal links remain private, and are still required to edit a saved ballot. No reusable member credentials, contacts, saved individual ballots, or other family history are exposed through group access. Turning the picker off revokes its invitation; turning it on again creates a new one. Share the updated group invitation after changing this setting. Default invitations keep the original personal-link connection behavior.
+
+The **Waiting on…** panel appears below the ballot. Its small animated dots indicate waiting; the page checks about every eight seconds and offers a manual refresh, with an offline message if a refresh fails. Saved votes are acknowledged before checking whether the person is on the current guest list. Brief food-emoji animations celebrate a successful submission; reduced-motion devices get a static experience. Ranked-choice selections update in place to avoid reopening the iOS native picker, with a subtle restaurant logo beside each selected rank.
+
+Results can show ballot-supported highlights such as unanimous approval, a one-vote margin, ranked-choice transfers and counting rounds. Shared messages include the winner’s saved address and a public results link. Any results viewer can make a picture; **Include the dinner crew’s avatars and names** is optional and off by default. Share only pictures with details your family is comfortable sharing.
+
+In **History**, organizers can **Delete** an individual test poll or **Clear finished history**, with a permanent-deletion confirmation. Clearing history includes older finished polls beyond those currently displayed and leaves open polls, members and saved restaurants intact. Deleting a poll removes its ballots and stops its poll links from working.
+
+`sql/voting_experience.sql` adds these settings and scoped group/deletion RPCs without changing existing votes, member IDs or personal links. It has been applied to the live database. The original database baseline must not be rerun. Rollback-only integration checks cover all three modes, scoped group access, revocation, personal edits, deletion permissions/cascades and finished-only cleanup.
+
 ## Useful links
 
 - [GitHub Pages setup](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
@@ -155,8 +169,8 @@ Restaurants now opens with your saved favorites. **Add restaurant** reveals disc
 
 ### Starting a vote in the family group chat
 
-Every new vote offers **Text group invite**, **Share group invite**, and **Copy group invite** above individual invitations. Choose the existing family thread in Messages/share sheet. The shared entry URL contains only the poll ID, never personal or organizer tokens, contacts or participant photos.
+Every new vote offers **Text group invite**, **Share group invite**, and **Copy group invite** above individual invitations. Choose the existing family thread in Messages/share sheet. By default, the shared entry URL contains only the poll ID, never personal or organizer tokens, contacts or participant photos. With the optional avatar/name picker enabled, it also contains a revocable credential for this poll only; that invitation reveals invited names/photos as described above.
 
-On a phone already connected to a personal member link, the group entry opens as that person. A new phone shows **Connect your personal link**: paste the private member link once. The app verifies the token and family before connecting the phone; organizer links and links for other sites are rejected. A valid family member who was not selected sees an explanation and cannot cast a ballot. Individual personal invitations remain available when onboarding someone for the first time.
+With the default personal-link mode, a phone already connected to a personal member link opens the group entry as that person. A new phone shows **Connect your personal link**: paste the private member link once. The app verifies the token and family before connecting the phone; organizer links and links for other sites are rejected. A valid family member who was not selected sees an explanation and cannot cast a ballot. Individual personal invitations remain available when onboarding someone for the first time.
 
 Group invitations, reminders and results are still drafts for you to send. The app does not automatically send to a group or promise delivery.
