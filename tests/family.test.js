@@ -32,3 +32,11 @@ test('only notable results get one highlight; shares retain addresses without pr
 test('cuisine shortlists match saved food categories/names, never the address',()=>{
  assert.equal(F.matchesCuisine({name:'Pizza night',category:'Italian'},'pizza'),true);assert.equal(F.matchesCuisine({name:'Favorite',category:'Mexican'},'mexican'),true);assert.equal(F.matchesCuisine({name:'Burgers',address:'Mexican Pizza Town'},'mexican'),false);assert.equal(F.matchesCuisine({name:'Taco stop'},'mexican'),true);assert.equal(F.matchesCuisine({name:'Any place'},''),true);assert.equal(F.matchesCuisine({name:'Any place'},'unknown'),false);
 });
+test('explicit cuisine themes carry matching emojis through invitations, reminders and results',()=>{
+ for(const [cuisine,title,emoji] of [['pizza','Pizza night','🍕'],['mexican','Mexican night','🌮']]){
+  const poll={cuisine,meal:'Dinner',method:'approval',options,expected_voters:3,voted_count:3,ballots:[['a'],['a'],['a']],group_join_token:'scoped-fixture'};
+  for(const message of [F.groupInvite(poll,'https://example.test/?poll=one&join=scoped-fixture'),F.invite(poll,'Sam','https://example.test/?member=one'),F.reminder(poll,'Sam','https://example.test/?member=one'),F.result(poll,Voting.tally(poll),'https://example.test/?poll=one')])assert.ok(message.toLowerCase().includes(title.toLowerCase())&&message.includes(emoji));
+ }
+ assert.equal(F.theme({meal:'Dinner',cuisine:'unknown'}),null);assert.equal(F.theme({meal:'Lunch',cuisine:'pizza'}).title,'Pizza lunch');
+ assert.equal(F.theme({meal:'Dinner',options:[{name:'Pizza place'}]}),null);
+});
