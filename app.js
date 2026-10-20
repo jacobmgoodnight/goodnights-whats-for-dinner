@@ -40,7 +40,7 @@ async function restoreGroupPerson(){
 }
 const celebratedResults=new Set();
 function celebrateResults(){
- if(state.preview||!poll?.voted_count||celebratedResults.has(poll.id))return;
+ if(state.preview||!poll?.voted_count||['no-choice','empty'].includes(window.GoodnightsVoting.tally(poll).outcome)||celebratedResults.has(poll.id))return;
  const key='gw_results_seen_'+poll.id;celebratedResults.add(poll.id);
  try{if(typeof sessionStorage!=='undefined'){if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1')}}catch{}
  app.querySelector?.('.winner')?.classList?.add('results-arrived');celebrateVote('results');
@@ -355,7 +355,7 @@ function pollSharing(){
  const invited=members.filter(m=>!poll.roster_enabled||(poll.people||[]).some(p=>p.id===m.id));
  const groupText=F.groupInvite(poll,groupInviteUrl());
  const closed=poll.status==='closed',summary=closed?F.result(poll,window.GoodnightsVoting.tally(poll),resultsUrl()):'';
- return `<section class="card sharing-card"><div class="eyebrow">${closed?'📣 DINNER IS DECIDED':'💌 INVITE THE FAMILY'}</div><h2>${closed?'Share the results':'Invite family to this vote'}</h2><p class="note">${closed?'Group-safe results include the winner and voting stats.':'Send each personal invitation only to that person.'} Text opens a draft; you choose when to send. Share opens your device’s app picker. If your text app omits the draft, use Copy message and paste it.</p>
+ return `<section class="card sharing-card"><div class="eyebrow">${closed?'📣 VOTING RESULTS':'💌 INVITE THE FAMILY'}</div><h2>${closed?'Share the results':'Invite family to this vote'}</h2><p class="note">${closed?'Group-safe results include the outcome and voting stats.':'Send each personal invitation only to that person.'} Text opens a draft; you choose when to send. Share opens your device’s app picker. If your text app omits the draft, use Copy message and paste it.</p>
  ${!closed?`<div class="group-invite"><h3>👨‍👩‍👧‍👦 Start in your family group chat</h3><p class="note">${poll.group_join_token?'One invitation opens an avatar/name picker. Anyone with it can choose an invited person; share only in your trusted family group.':'One link uses each person’s saved identity. On a new phone, connect your personal link once. Enable the optional name picker in Voting options below.'} Choose your existing family conversation in Messages.</p><pre class="message-preview">${esc(groupText)}</pre><div class="btn-row"><a class="btn btn-primary btn-sm" href="${esc(smsUrl(null,groupText))}">💬 Text group invite</a><button class="btn btn-quiet btn-sm" data-act="shareGroupInvite">Share group invite</button><button class="btn btn-line btn-sm" data-act="copyGroupInvite">Copy group invite</button></div></div>`:''}
  ${closed?`<pre class="message-preview">${esc(summary)}</pre><div class="btn-row"><a class="btn btn-primary" href="${esc(smsUrl(null,summary))}">💬 Text results</a><button class="btn btn-quiet" data-act="shareResultsMessage">↗ Share results</button><button class="btn btn-line" data-act="copyResultsMessage">📋 Copy message</button></div>`:''}
  ${!live?'<p class="note">Sharing is available in the connected family app.</p>':state.memberLoadError?'<p>Could not load family links.</p><button class="btn btn-quiet" data-act="retryMembers">Retry</button>':poll.roster_enabled&&poll.people_error?'<p>Load participant status to see invitations.</p><button class="btn btn-quiet" data-act="refreshPeople">Retry status</button>':invited.length?invited.map(m=>`<details class="member-invite"><summary>${memberAvatar(m)}<strong>${esc(m.name)}</strong><span>${closed?'Results':'Invitation'} ✉️</span></summary><pre class="message-preview">${esc(pollMessage(m))}</pre><div class="btn-row"><a class="btn btn-primary btn-sm" href="${esc(smsUrl(m,pollMessage(m)))}">💬 Text ${esc(m.name)}</a><button class="btn btn-quiet btn-sm" data-act="shareMemberPoll" data-id="${esc(m.id)}">↗ Share message</button><button class="btn btn-line btn-sm" data-act="copyMemberMessage" data-id="${esc(m.id)}">📋 Copy message</button>${!closed?`<button class="btn btn-line btn-sm" data-act="copyMemberPoll" data-id="${esc(m.id)}">Copy link</button>`:''}</div></details>`).join(''):'<p>No members yet.</p><button class="btn btn-quiet" data-act="nav" data-page="members">Add family members</button>'}
@@ -458,7 +458,7 @@ function clearResultsCard(){if(state.resultCard)URL.revokeObjectURL(state.result
 function resultCardHtml(){
  if(!familyToken)return '';
  const card=state.resultCard;
- return `<section class="card"><h2>🖼️ A little dinner announcement</h2><p class="note">Make a shareable picture with the winner, restaurant visuals and voting stats.</p>${(poll.people||[]).some(m=>m.voted)?`<label class="setting-row"><input id="includeCardAvatars" type="checkbox" ${state.cardBusy?'disabled':''} ${state.includeCardAvatars?'checked':''}><span><strong>Include the dinner crew’s avatars and names</strong><small>Optional: these will be visible to anyone you share the picture with.</small></span></label>`:''}${card&&card.pollId===poll.id?`<img class="results-share-image" src="${card.url}" alt="Dinner results card"><div class="btn-row"><a class="btn btn-quiet" href="${card.url}" download="goodnights-results.png">⬇ Save image</a>${card.canShare?'<button class="btn btn-primary" data-act="shareResultsCard">↗ Share image</button>':''}</div><p class="note">If your messaging app shares only the image, send the results link with Copy message above.</p>`:`<button class="btn btn-quiet btn-full" data-act="prepareResultsCard" ${state.cardBusy?'disabled':''}>${state.cardBusy?'Making your card…':'✨ Make results image'}</button>`}</section>`;
+ return `<section class="card"><h2>🖼️ A little dinner announcement</h2><p class="note">Make a shareable picture with the outcome, restaurant visuals and voting stats.</p>${(poll.people||[]).some(m=>m.voted)?`<label class="setting-row"><input id="includeCardAvatars" type="checkbox" ${state.cardBusy?'disabled':''} ${state.includeCardAvatars?'checked':''}><span><strong>Include the dinner crew’s avatars and names</strong><small>Optional: these will be visible to anyone you share the picture with.</small></span></label>`:''}${card&&card.pollId===poll.id?`<img class="results-share-image" src="${card.url}" alt="Dinner results card"><div class="btn-row"><a class="btn btn-quiet" href="${card.url}" download="goodnights-results.png">⬇ Save image</a>${card.canShare?'<button class="btn btn-primary" data-act="shareResultsCard">↗ Share image</button>':''}</div><p class="note">If your messaging app shares only the image, send the results link with Copy message above.</p>`:`<button class="btn btn-quiet btn-full" data-act="prepareResultsCard" ${state.cardBusy?'disabled':''}>${state.cardBusy?'Making your card…':'✨ Make results image'}</button>`}</section>`;
 }
 function loadCardImage(src){return new Promise(resolve=>{const img=new Image();let done=false;const finish=value=>{if(done)return;done=true;clearTimeout(timer);resolve(value)};const timer=setTimeout(()=>finish(null),1800);img.crossOrigin='anonymous';img.referrerPolicy='no-referrer';img.onload=()=>finish(img);img.onerror=()=>finish(null);img.src=src})}
 async function makeResultsCard(snapshot){
@@ -469,8 +469,8 @@ async function makeResultsCard(snapshot){
  const text=(value,x,y,size=30,color='#23221f',weight='600')=>{ctx.fillStyle=color;ctx.font=weight+' '+size+'px system-ui';ctx.fillText(value,x,y)};
  const fit=(value,size,maxWidth)=>{ctx.font='700 '+size+'px system-ui';let t=String(value);while(ctx.measureText(t).width>maxWidth&&t.length>1)t=t.slice(0,-2)+'…';return t};
  box(0,0,960,canvas.height,0,'#fdf8ee');box(42,42,876,canvas.height-84,36,'#fffefa');const brand=await loadCardImage(new URL('icons/icon-192.png',location.href).href);if(brand){ctx.drawImage(brand,84,79,42,42);text('goodnights',140,115,38)}else text('goodnights',84,115,38);text(F.theme(snapshot)?F.theme(snapshot).emoji+' '+F.theme(snapshot).title.toUpperCase():'WHAT’S FOR '+snapshot.meal.toUpperCase()+'?',84,158,19,'#ad4926');
- box(78,195,804,220,24,'#fbe7d2');text(winners.length===1?'🏆 The family picked…':winners.length?'🤝 We have a tie!':'🍽️ No winner this time',110,250,27);
- text(fit(winners.length===1?winners[0].name:winners.length?winners.map(r=>r.name).join(' / '):'Try another family vote',42,720),110,322,42);
+ box(78,195,804,220,24,'#fbe7d2');text(tally.outcome==='no-choice'?'Nothing sounds good tonight':winners.length===1?'🏆 The family picked…':winners.length?'🤝 We have a tie!':'🍽️ No winner this time',110,250,27);
+ text(fit(winners.length===1?winners[0].name:winners.length?winners.map(r=>r.name).join(' / '):tally.outcome==='no-choice'?'Start a new shortlist':'Try another family vote',42,720),110,322,42);
  text(snapshot.voted_count+' family ballots · '+methodName(snapshot.method),110,376,23,'#655e54');
  const final=tally.rounds.at(-1)||{},rows=options.filter(r=>snapshot.method!=='ranked'||r.id in final).sort((a,b)=>tally.scores[b.id]-tally.scores[a.id]).slice(0,3);
  for(const [i,r] of rows.entries()){
@@ -485,10 +485,11 @@ async function makeResultsCard(snapshot){
  if(tally.randomlyResolved){
   text('🎲 Chosen randomly between '+tally.tiedWinners.length+' tied leaders.',84,856,23,'#776b5c');
   text('The votes above are unchanged.',84,890,21,'#776b5c');
+  if(snapshot.method==='swipe'&&Math.max(...Object.values(tally.scores))===0)text('Historical saved draw: no restaurant received a yes vote.',84,924,21,'#776b5c');
  }else text(fit(tally.details,23,790),84,856,23,'#776b5c');
  stats.slice(0,2).forEach((s,i)=>text(fit(s.emoji+' '+s.title+' · '+s.detail,21,790),84,898+i*34,21,'#776b5c'));
  if(crew.length){
-  text('🧡 Decided together',84,986,25);
+  text(tally.outcome==='no-choice'?'🧡 The dinner crew':'🧡 Decided together',84,986,25);
   for(const [i,m] of crew.slice(0,8).entries()){
    const x=120+i*101,y=1040,a=F.avatar(m.avatar);box(x-33,y-33,66,66,33,'#f8e9d7');
    const img=a.startsWith('data:')?await loadCardImage(a):null;
@@ -497,17 +498,17 @@ async function makeResultsCard(snapshot){
   }
   if(crew.length>8)text('+'+(crew.length-8)+' more around the table',84,1145,20,'#776b5c');
  }
- text('Dinner, decided together. 🧡',84,canvas.height-122,27);text('Goodnights • family restaurant voting',84,canvas.height-84,18,'#776b5c');
+ text(tally.outcome==='no-choice'?'Let’s try a new shortlist. 🧡':'Dinner, decided together. 🧡',84,canvas.height-122,27);text('Goodnights • family restaurant voting',84,canvas.height-84,18,'#776b5c');
  const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Could not create the image.')),'image/png'));
  const file=new File([blob],'goodnights-results.png',{type:'image/png'});let canShare=false;try{canShare=!!navigator.canShare?.({files:[file]})}catch{}
  return {pollId:snapshot.id,url:URL.createObjectURL(blob),file,canShare};
 }
 function renderResults(){
- const {scores,winners,details}=window.GoodnightsVoting.tally(poll);
+ const {scores,winners,details,outcome}=window.GoodnightsVoting.tally(poll);
  const all=poll.options||[],win=all.filter(o=>winners.includes(o.id));
  const maximum=Math.max(1,...Object.values(scores));
- const desc=win.length===1?esc(win[0].name):win.length>1?`It's a tie! (${win.length} places)`:'No winner yet';
- layout(`${member&&!state.preview?memberIdentity(member):''}<div class="eyebrow">THE FAMILY HAS SPOKEN</div><div class="card winner"><div class="trophy">🏆</div><div class="eyebrow">${F.theme(poll)?esc(F.theme(poll).emoji+' '+F.theme(poll).title.toUpperCase()):poll.meal.toUpperCase()} RESULTS</div>${win.length===1?`<div class="winner-place-logo">${icon(win[0].category,win[0].name,win[0])}</div>`:''}<h1>${desc}</h1><p class="subtle">${esc(details)}</p>${win.length===1&&!state.preview?`<p class="winner-address">${esc(win[0].address||'Address not saved — Maps will search by name.')}</p><a class="btn btn-dark" target="_blank" rel="noopener noreferrer" href="${esc(mapsForRestaurant(win[0]))}">📍 Open in Maps</a>`:''}</div>${peoplePanel()}${resultHighlights()}
+ const desc=outcome==='no-choice'?'Nothing sounds good tonight':win.length===1?esc(win[0].name):win.length>1?`It's a tie! (${win.length} places)`:'No ballots submitted';
+ layout(`${member&&!state.preview?memberIdentity(member):''}<div class="eyebrow">THE FAMILY HAS SPOKEN</div><div class="card winner">${win.length?'<div class="trophy">🏆</div>':''}<div class="eyebrow">${F.theme(poll)?esc(F.theme(poll).emoji+' '+F.theme(poll).title.toUpperCase()):poll.meal.toUpperCase()} RESULTS</div>${win.length===1?`<div class="winner-place-logo">${icon(win[0].category,win[0].name,win[0])}</div>`:''}<h1>${desc}</h1><p class="subtle">${esc(details)}</p>${win.length===1&&!state.preview?`<p class="winner-address">${esc(win[0].address||'Address not saved — Maps will search by name.')}</p><a class="btn btn-dark" target="_blank" rel="noopener noreferrer" href="${esc(mapsForRestaurant(win[0]))}">📍 Open in Maps</a>`:''}</div>${outcome==='no-choice'&&familyToken&&!state.preview?'<button class="btn btn-primary" data-act="newShortlist">Start a new shortlist</button>':''}${outcome==='no-choice'&&state.preview?'<p class="note">In a real vote, the organizer can start a new shortlist.</p>':''}${peoplePanel()}${resultHighlights()}
  <div class="card"><div class="between"><h2>The results</h2><span class="count">${poll.voted_count} votes</span></div>
  ${[...all].sort((a,b)=>scores[b.id]-scores[a.id]||a.name.localeCompare(b.name)).map(r=>`<div class="resultbar"><div class="bar-head"><span>${icon(r.category,r.name,r)} ${esc(r.name)}</span><span>${poll.method==='swipe'?Math.round(100*scores[r.id]/Math.max(1,poll.voted_count))+'%':poll.method==='ranked'?(r.id in (window.GoodnightsVoting.tally(poll).rounds.at(-1)||{})?scores[r.id]+' votes':'Eliminated'):scores[r.id]+' votes'}</span></div><div class="bar-track"><div class="bar-fill" style="width:${100*scores[r.id]/maximum}%"></div></div></div>`).join('')}
  <p class="note">${win.length>1?'The organizer can randomly pick a tied leader or start a runoff.':poll.method==='ranked'?'Ranked votes transfer to your next choice when a place is eliminated.':'Each voter can approve up to two places or vote yes/no as configured.'}</p></div>
@@ -597,7 +598,7 @@ async function getTown(){
  try{localStorage.setItem('gw_town_cache',JSON.stringify(townCache))}catch{}
  await findNearby(lat,lon);
 }
-const ownerActions=new Set(['createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','savePollSettings','deletePoll','clearHistory']);
+const ownerActions=new Set(['createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','newShortlist','savePollSettings','deletePoll','clearHistory']);
 async function doAction(act,button){
  if(act==='installApp'){if(!installPrompt)return;const request=installPrompt;installPrompt=null;await request.prompt();await request.userChoice;render();return}
  if(act==='chooseGroupMember'){
@@ -686,6 +687,12 @@ startPreview(button.dataset.method);return}
   await safe(async()=>{await rpc('gw_update_member_profile',{p_token:familyToken,p_member_id:state.editingMember,p_name:name,p_avatar:state.avatarDraft,p_phone:phone});await loadMembers();state.editingMember=null;render();toast('Profile saved!')});return;
  }
 
+ if(act==='newShortlist'){
+  if(!familyToken||state.preview||window.GoodnightsVoting.tally(poll).outcome!=='no-choice')return;
+  state.selected=new Set();state.createStep=0;state.pollSearch='';state.pollCuisine='';state.pollCenter=null;state.pollRadius='';
+  state.meal=poll.meal;state.method='swipe';
+  await loadCreatePeople();setPage('create');return;
+ }
  if(act==='nav'){if(button.dataset.page==='members')await safe(loadMembers);if(button.dataset.page==='create'&&familyToken){state.createStep=0;await loadCreatePeople()}setPage(button.dataset.page);return}
  if(act==='demo'){demoInit();await safe(async()=>{await loadFamily();render()});return}
  if(act==='newFamily'){

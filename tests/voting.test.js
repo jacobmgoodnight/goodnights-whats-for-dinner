@@ -27,3 +27,23 @@ test('a saved draw cannot override a clear winner or an empty ballot collection'
  assert.deepEqual(tally({...poll('approval',[['a'],['a']]),tie_winner_id:'b'}).winners,['a']);
  assert.deepEqual(tally({...poll('approval',[]),tie_winner_id:'a'}).winners,[]);
 });
+
+for(const n of [1,3])test('all-no consensus with '+n+' voters is no-choice, with unchanged ballots/scores',()=>{
+ const original=poll('swipe',Array.from({length:n},()=>({a:false,b:false,c:false}))),snapshot=JSON.stringify(original),result=tally(original);
+ assert.equal(result.outcome,'no-choice');assert.deepEqual(result.winners,[]);assert.deepEqual(result.tiedWinners,[]);assert.equal(result.randomlyResolved,false);
+ assert.deepEqual(result.scores,{a:0,b:0,c:0});assert.equal(JSON.stringify(original),snapshot);
+});
+test('saved zero-support draw remains visible and explicitly historical',()=>{
+ const result=tally({...poll('swipe',[{a:false,b:false,c:false}]),tie_winner_id:'b'});
+ assert.equal(result.outcome,'random');assert.deepEqual(result.winners,['b']);assert.deepEqual(result.tiedWinners,['a','b','c']);assert.match(result.details,/Historical saved draw.*no restaurant received a yes/);
+});
+test('empty, positive plurality and positive tie remain distinct, including early closure',()=>{
+ assert.equal(tally(poll('swipe',[])).outcome,'empty');
+ const base={...poll('swipe',[{a:true,b:false,c:false},{a:false,b:false,c:false}]),status:'closed',expected_voters:5};
+ assert.equal(tally(base).outcome,'winner');assert.deepEqual(tally(base).winners,['a']);assert.match(tally(base).details,/Most yes votes: 1\/2/);
+ assert.equal(tally({...base,ballots:[{a:true,b:true,c:false}]}).outcome,'tie');
+ assert.equal(tally({...base,ballots:[{a:false,b:false,c:false}]}).outcome,'no-choice');
+ // H1 changes consensus only, including legacy malformed/exhausted ballots.
+ assert.deepEqual(tally(poll('approval',[[]])).winners,['a','b','c']);
+ assert.deepEqual(tally(poll('ranked',[[]])).winners,['a','b','c']);
+});
