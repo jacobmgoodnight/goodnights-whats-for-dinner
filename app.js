@@ -17,7 +17,7 @@ const params=new URL(location.href).searchParams;
 const icon=(category='',name='',restaurant)=>window.GoodnightsLogos.render(restaurant||{name,category});
 let store, familyToken=localStorage.getItem(familyKey)||'',memberToken=localStorage.getItem(memberKey)||'',member=null,members=[],family=null,poll=null;
 const F=window.GoodnightsFamily;
-const state={allowMemberHome:false,groupJoin:true,includeCardAvatars:false,refreshError:false,deferredPollRender:false,createStep:0,selectedPeople:new Set(),peopleInitialised:false,peopleLoadError:false,reminderId:null,discoverOpen:false,restaurantDrafts:{},renderedPage:null,renderedEditingId:null,skipDraftCapture:false,editingVote:false,pendingAction:null,resultCard:null,cardBusy:false,preview:false,editingMember:null,avatarDraft:'🙂',photoBusy:false,page:'home',selected:new Set(),meal:'Dinner',method:'approval',expected:4,
+const state={restaurantReview:null,allowMemberHome:false,groupJoin:true,includeCardAvatars:false,refreshError:false,deferredPollRender:false,createStep:0,selectedPeople:new Set(),peopleInitialised:false,peopleLoadError:false,reminderId:null,discoverOpen:false,restaurantDrafts:{},renderedPage:null,renderedEditingId:null,skipDraftCapture:false,editingVote:false,pendingAction:null,resultCard:null,cardBusy:false,preview:false,editingMember:null,avatarDraft:'🙂',photoBusy:false,page:'home',selected:new Set(),meal:'Dinner',method:'approval',expected:4,
  name:localStorage.getItem('gw_name')||'',approvals:new Set(),swipes:{},swipeIndex:0,rank:[],
  pollSearch:'',pollCuisine:'',pollCenter:null,pollRadius:'',memberLoadError:false,search:'',nearby:[],nearbyBusy:false,center:null,city:'New Palestine, Indiana',restaurantName:'',nearbyQuery:'',
  adding:false,showNearby:false,busy:false,notice:'',editingId:null};
@@ -90,14 +90,25 @@ function demoRpc(fn,p){
      polls:[...store.polls].reverse().slice(0,20).map(q=>({id:q.id,meal:q.meal,method:q.method,expected_voters:q.expected_voters,status:q.status,created_at:q.created_at,voted_count:Object.keys(store.ballots[q.id]||{}).length}))};
  }
  if(fn==='gw_add_restaurant'){
-   if(p.p_token!==F.token)throw Error('Access denied');
-   let r=store.restaurants.find(r=>r.name.toLowerCase()===p.p_name.trim().toLowerCase());
-   if(r)r.active=true;else{r={id:uid(),family_id:F.id,active:true,name:p.p_name,category:p.p_category||'',address:p.p_address||'',latitude:p.p_latitude,longitude:p.p_longitude,osm_id:p.p_osm_id};store.restaurants.push(r)}
-   demoSave();return r.id;
+   const result=demoRpc('gw_save_restaurant_location',p);if(result.status==='review')throw Error('Possible duplicate or missing address. Review locations using the updated app');return result.id;
+ }
+ if(fn==='gw_save_restaurant_location'){
+   if(p.p_token!==F.token)throw Error('Family access denied');
+   const draft={name:p.p_name,category:p.p_category||'',address:p.p_address||'',osm_id:p.p_osm_id||null};
+   if(!draft.name?.trim())throw Error('Enter a restaurant name');
+   const all=store.restaurants.filter(r=>r.family_id===F.id),matches=window.GoodnightsMaps.locationMatches(all,draft),exact=matches.filter(r=>r.match==='exact');
+   let r=p.p_use_restaurant_id?all.find(r=>r.id===p.p_use_restaurant_id):exact.length===1?all.find(r=>r.id===exact[0].id):null;
+   if(p.p_use_restaurant_id&&!r)throw Error('Saved location not found in your family');
+   if(r){if(!r.active&&all.filter(r=>r.active).length>=250)throw Error('Maximum of 250 restaurants');const restored=!r.active;r.active=true;demoSave();return {status:'saved',id:r.id,created:false,restored}}
+   if(exact.length>1||!p.p_keep_separate&&(matches.length||!draft.address.trim())||matches.some(r=>!(p.p_reviewed_ids||[]).includes(r.id)))return {status:'review',matches,can_keep_separate:exact.length<2,reason:'Compare saved locations before keeping a separate place.'};
+   if(all.filter(r=>r.active).length>=250)throw Error('Maximum of 250 restaurants');
+   r={...draft,id:uid(),family_id:F.id,active:true,latitude:p.p_latitude??null,longitude:p.p_longitude??null,icon_mode:p.p_icon_mode||'auto',icon_value:p.p_icon_value||''};
+   store.restaurants.push(r);demoSave();return {status:'saved',id:r.id,created:true,restored:false};
  }
  if(fn==='gw_update_restaurant'){
   const r=store.restaurants.find(x=>x.id===p.p_restaurant_id&&x.family_id===F.id);
   if(!r||p.p_token!==F.token)throw Error('Restaurant not found or access denied');
+  if(window.GoodnightsMaps.locationKey(r.address)!==window.GoodnightsMaps.locationKey(p.p_address))Object.assign(r,{latitude:null,longitude:null,osm_id:null});
   Object.assign(r,{name:p.p_name.trim(),category:p.p_category||'',address:p.p_address||'',
     icon_mode:p.p_icon_mode||'auto',icon_value:p.p_icon_value||''});
   demoSave();return r.id;
@@ -149,7 +160,7 @@ const memberUrl=t=>{const u=new URL(location.href);u.search='?member='+encodeURI
 const familyUrl=()=>{const u=new URL(location.href);u.search='?family='+encodeURIComponent(familyToken);u.hash='';return u.href};
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),4000)}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('Link copied!')}catch{prompt('Copy this link:',text)}}
-const pendingLabels={join:'Connecting invitation…',chooseGroupMember:'Opening your ballot…',savePollSettings:'Saving voting options…',deletePoll:'Deleting vote…',clearHistory:'Clearing finished votes…',connectVote:'Connecting your phone…',createPoll:'Creating vote…',submitVote:'Saving your vote…',addMember:'Adding member…',saveMemberProfile:'Saving profile…',saveRestaurant:'Saving restaurant…',addManual:'Saving restaurant…',saveGoogle:'Saving restaurant…',addNearby:'Saving restaurant…',archive:'Hiding restaurant…',resetMemberLink:'Resetting link…',removeMember:'Removing member…',closePoll:'Closing vote…',randomTie:'Picking a tied winner…',runoff:'Creating runoff…',newFamily:'Creating family…',resetVote:'Loading your vote…'};
+const pendingLabels={confirmLocation:'Saving location…',useSavedLocation:'Using saved location…',join:'Connecting invitation…',chooseGroupMember:'Opening your ballot…',savePollSettings:'Saving voting options…',deletePoll:'Deleting vote…',clearHistory:'Clearing finished votes…',connectVote:'Connecting your phone…',createPoll:'Creating vote…',submitVote:'Saving your vote…',addMember:'Adding member…',saveMemberProfile:'Saving profile…',saveRestaurant:'Saving restaurant…',addManual:'Saving restaurant…',saveGoogle:'Saving restaurant…',addNearby:'Saving restaurant…',archive:'Hiding restaurant…',resetMemberLink:'Resetting link…',removeMember:'Removing member…',closePoll:'Closing vote…',randomTie:'Picking a tied winner…',runoff:'Creating runoff…',newFamily:'Creating family…',resetVote:'Loading your vote…'};
 const pendingControls=new Map();
 function syncPendingUI(){
  if(state.pendingAction){
@@ -264,23 +275,42 @@ function renderMembers(){
  <div class="card"><h2>Add a member</h2><div class="field"><label for="newMemberName">Name</label><input id="newMemberName" maxlength="60" placeholder="e.g. Charlotte"></div><button class="btn btn-primary btn-full" data-act="addMember">＋ Add family member</button></div>
  ${memberEditor()}<div class="card"><h2>${members.length} members</h2>${members.map(m=>`<div class="member-profile-row"><div class="member-identity">${memberAvatar(m)}<div><strong>${esc(m.name)}</strong></div></div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="copyMember" data-id="${esc(m.id)}">Copy invitation</button><button class="btn btn-primary btn-sm" data-act="editMemberProfile" data-id="${esc(m.id)}">Edit profile</button></div><details class="member-access"><summary>Access & membership</summary><p class="note">Reset an invitation if it was shared accidentally, or remove someone’s voting access.</p><div class="btn-row"><button class="btn btn-line btn-sm" data-act="resetMemberLink" data-id="${esc(m.id)}">Reset personal link</button><button class="btn btn-line btn-sm" data-act="removeMember" data-id="${esc(m.id)}">Remove member</button></div></details></div>`).join('')||'<p>No family members yet.</p>'}</div><p class="note">Only the organizer can edit profiles and phone numbers. Reset a personal link if it is shared accidentally.</p><details class="card organizer-backup"><summary>🔑 Organizer access backup</summary><p class="note">This private link gives full organizer access. Save it for yourself or another organizer. Invite voters with their personal links above.</p><button class="btn btn-line btn-full" data-act="familyLink">Copy private organizer link</button></details>`)
 }
+function savedLocationSuggestions(query){
+ const matches=window.GoodnightsMaps.savedSuggestions(family?.restaurants||[],query);
+ return matches.length?'<p class="note">Already in your saved list — no online search.</p>'+matches.map(r=>`<div class="item"><div class="item-body"><strong>${esc(r.name)}</strong><div class="item-detail">${esc(r.address||'Location not saved')}</div></div><button class="btn btn-line btn-sm" data-act="viewSavedLocation" data-id="${esc(r.id)}">View saved</button></div>`).join(''):'';
+}
+function restaurantReviewHtml(){
+ const review=state.restaurantReview;if(!review)return '';
+ const exact=review.matches.some(r=>r.match==='exact');
+ return `<section class="card location-review" id="locationReview" tabindex="-1" aria-label="Review restaurant location"><h2>${exact?'Already saved':'Review this location'}</h2><strong>${esc(review.draft.name)}</strong><p>${esc(review.draft.address||'Location not saved')}</p><p class="note">${esc(review.reason||(!review.draft.address?'Without an address, we cannot identify a manual duplicate. Review before saving.':review.matches.length?'Possible duplicate — compare the addresses. Same names or nearby coordinates alone do not identify a location.':'Confirm this name and address before saving.'))}</p>${review.matches.map(r=>`<div class="item"><div class="item-body"><strong>${esc(r.name)}</strong><div class="item-detail">${esc(r.address||'Location not saved')}</div><small>${r.match==='exact'?'Already saved':'Possible duplicate'}${r.active===false?' · Hidden':''}</small></div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="useSavedLocation" data-id="${esc(r.id)}">${r.active===false?'Restore saved':'Use saved'}</button>${r.active!==false?`<button class="btn btn-line btn-sm" data-act="editMatchedLocation" data-id="${esc(r.id)}">Edit saved</button>`:''}</div></div>`).join('')}<div class="btn-row" style="margin-top:16px"><button class="btn btn-line" data-act="cancelLocationReview">Edit entered details</button>${!exact&&review.can_keep_separate!==false?`<button class="btn btn-primary" data-act="confirmLocation">${review.matches.length||!review.draft.address?'Keep a separate location':'Save this location'}</button>`:''}</div><p class="note">Using a saved place preserves its address, logo and history. Only a new place receives the entered appearance.</p></section>`;
+}
+function reviewRestaurant(draft){
+ state.restaurantReview={draft,matches:window.GoodnightsMaps.locationMatches(family.restaurants||[],draft)};render();$('locationReview')?.focus?.({preventScroll:true});$('locationReview')?.scrollIntoView?.({block:'start',behavior:'smooth'});
+}
+async function confirmRestaurantLocation(useId=null){
+ const review=state.restaurantReview;if(!review)return;
+ const r=review.draft;
+ const result=await rpc('gw_save_restaurant_location',{p_token:familyToken,p_name:r.name,p_category:r.category||'',p_address:r.address||'',p_osm_id:r.osm_id||null,p_latitude:r.latitude??null,p_longitude:r.longitude??null,p_icon_mode:r.icon_mode||'auto',p_icon_value:r.icon_value||'',p_keep_separate:!useId&&(review.matches.length>0||!r.address),p_use_restaurant_id:useId,p_reviewed_ids:review.matches.map(r=>r.id)});
+ if(result.status==='review'){state.restaurantReview={...review,matches:result.matches||[],reason:result.reason,can_keep_separate:result.can_keep_separate};render();$('locationReview')?.focus?.({preventScroll:true});return}
+ await loadFamily();state.restaurantReview=null;render();toast(result.created?'Location saved':result.restored?'Saved location restored':'Using the saved location');
+}
 function renderRestaurants(){
  if(!familyToken){setPage('home');return}
  const editR=state.editingId?family.restaurants.find(r=>r.id===state.editingId):null;
  const search=state.search.toLowerCase().trim(),restaurants=(family.restaurants||[]).filter(r=>(r.name+' '+r.category+' '+r.address).toLowerCase().includes(search));
  layout(`<div class="eyebrow">OUR GO-TO SPOTS</div><div class="between"><div><h1>Our restaurants.</h1><p class="lede">Your family's personal shortlist. Add any place you like.</p></div><button class="btn btn-primary btn-sm" data-act="toggleDiscovery">${state.discoverOpen?'Done':'＋ Add restaurant'}</button></div>
- ${editR?`<div class="card restaurant-edit-card"><div class="eyebrow">CUSTOMIZE RESTAURANT</div><h2>Edit ${esc(editR.name)}</h2>
+ ${restaurantReviewHtml()}${editR?`<div class="card restaurant-edit-card"><div class="eyebrow">CUSTOMIZE RESTAURANT</div><h2>Edit ${esc(editR.name)}</h2>
 <div class="field"><label for="editName">Restaurant name</label><input id="editName" maxlength="120" value="${esc(editR.name)}"></div>
 <div class="field"><label for="editCategory">Category</label><input id="editCategory" maxlength="80" value="${esc(editR.category||'')}"></div>
 <div class="field"><label for="editAddress">Address</label><input id="editAddress" maxlength="240" value="${esc(editR.address||'')}"></div>
-${appearanceFields('edit',editR)}
+<p class="note">Changing the address keeps historical references but clears its OSM link and coordinates. Add a separate place for another branch.</p>${appearanceFields('edit',editR)}
 <div class="logo-preview-line"><span>Current</span><div class="foodicon">${icon(editR.category,editR.name,editR)}</div><span>Preview</span><div id="logoPreview" class="foodicon">${icon(editR.category,editR.name,editR)}</div></div>
 <div class="btn-row"><button class="btn btn-line" data-act="previewRestaurant">Preview logo</button><button class="btn btn-line" data-act="cancelRestaurant">Cancel</button><button class="btn btn-primary" data-act="saveRestaurant">Save changes</button></div></div>`:''}
 <div class="card"><h2>Your saved favorites</h2><div class="field" style="margin-top:0"><label for="restaurantSearch">Filter your list</label><input id="restaurantSearch" value="${esc(state.search)}" placeholder="Search saved restaurants…"></div>
  ${restaurants.length?restaurants.map(r=>restaurantRow(r,{remove:true})).join(''):`<div class="empty"><span class="empty-emoji">🥗</span><h3>No matching restaurants</h3><p>Add a favorite or change your search.</p></div>`}</div>
  ${state.discoverOpen?`<div id="restaurantDiscovery"> <div class="card"><div class="between"><h2 style="margin:0">Find something good</h2><button class="btn btn-primary btn-sm" data-act="toggleAdd">✍️ Enter manually</button></div>
- <h3>Find local restaurants</h3><p class="note">Search by restaurant name, town, or both. Leave the name blank to browse nearby places. OpenStreetMap results may be incomplete.</p><div class="field"><label for="localName">Restaurant name (optional)</label><input id="localName" maxlength="80" value="${esc(state.restaurantName)}" placeholder="e.g. Culver's or Puccini's"></div><div class="field"><label for="city">Town / location</label><input id="city" value="${esc(state.city)}" placeholder="New Palestine, Indiana"></div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="townSearch" ${state.nearbyBusy?'disabled':''}>🔎 Search restaurants</button><button class="btn btn-quiet btn-sm" data-act="gpsSearch" ${state.nearbyBusy?'disabled':''}>📍 Search near me</button></div>
- ${state.adding?`<div class="field"><label for="restName">Restaurant name</label><input id="restName" maxlength="120" placeholder="e.g. Frosty Boy"></div><div class="field"><label for="restCategory">Cuisine or category</label><input id="restCategory" maxlength="80" placeholder="e.g. Burgers, Pizza, Ice cream"></div>${appearanceFields('manual')}<button class="btn btn-dark btn-full" data-act="addManual">Save to family list</button>`:''}
+ <h3>Find local restaurants</h3><p class="note">Search by restaurant name, town, or both. Leave the name blank to browse nearby places. OpenStreetMap results may be incomplete.</p><div class="field"><label for="localName">Restaurant name (optional)</label><input id="localName" maxlength="80" value="${esc(state.restaurantName)}" placeholder="e.g. Culver's or Puccini's"></div><div id="localSavedSuggestions">${savedLocationSuggestions(state.restaurantName)}</div><div class="field"><label for="city">Town / location</label><input id="city" value="${esc(state.city)}" placeholder="New Palestine, Indiana"></div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="townSearch" ${state.nearbyBusy?'disabled':''}>🔎 Search restaurants</button><button class="btn btn-quiet btn-sm" data-act="gpsSearch" ${state.nearbyBusy?'disabled':''}>📍 Search near me</button></div>
+ ${state.adding?`<div class="field"><label for="restName">Restaurant name</label><input id="restName" maxlength="120" placeholder="e.g. Frosty Boy"></div><div id="manualSavedSuggestions"></div><div class="field"><label for="manualAddress">Address (optional)</label><input id="manualAddress" maxlength="240" placeholder="Street address, town, state"></div><div class="field"><label for="restCategory">Cuisine or category</label><input id="restCategory" maxlength="80" placeholder="e.g. Burgers, Pizza, Ice cream"></div>${appearanceFields('manual')}<button class="btn btn-dark btn-full" data-act="addManual">Save to family list</button>`:''}
  ${state.nearbyBusy?'<p class="subtle">Looking for restaurants…</p>':''}${state.showNearby?`<h3 style="margin-top:20px">${state.nearby.length} ${state.nearbyQuery?'matching':'nearby'} restaurants${state.nearbyQuery?' for “'+esc(state.nearbyQuery)+'”':''}</h3>${state.nearby.length?state.nearby.map((r,i)=>`<div class="item"><div class="foodicon">${icon(r.category,r.name,r)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc(r.category)}${r.distance!=null?' · '+r.distance.toFixed(1)+' mi':''}${r.address?' · '+esc(r.address):''}</div></div>${family.restaurants.some(saved=>saved.osm_id&&saved.osm_id===r.osm_id)?'<span class="subtle">✓ Saved</span>':`<button class="btn btn-quiet btn-sm" data-act="addNearby" data-idx="${i}">+ Save</button>`}</div>`).join(''):'<p class="subtle">No matches found here. You can add a restaurant manually above.</p>'}`:''}
  </div>
  <div class="card"><h2>Find it on Google Maps</h2>
@@ -289,7 +319,7 @@ ${appearanceFields('edit',editR)}
  <div class="field"><label for="googlePaste">Paste a Google Maps listing, full link, or name and address</label><textarea class="searchbox" id="googlePaste" rows="3" style="resize:vertical;min-height:86px" placeholder="Restaurant name&#10;Street address, city, state&#10;or a Google Maps link"></textarea></div>
  <button class="btn btn-line btn-full" data-act="fillGoogle">Use pasted details ↓</button>
  <div class="field"><label for="googleName">Restaurant name</label><input id="googleName" maxlength="120" placeholder="e.g. Frosty Boy"></div>
- <div class="field"><label for="googleAddress">Address (optional)</label><input id="googleAddress" maxlength="240" placeholder="Street address, town, state"></div>
+ <div id="googleSavedSuggestions"></div><div class="field"><label for="googleAddress">Address (optional)</label><input id="googleAddress" maxlength="240" placeholder="Street address, town, state"></div>
  ${appearanceFields('google')}
  <p class="note">Short maps.app.goo.gl links don't contain readable names. If you copy one, also paste the restaurant name and address from Google Maps.</p>
  <button class="btn btn-dark btn-full" data-act="saveGoogle">＋ Save to family restaurants</button>
@@ -396,7 +426,7 @@ function captureRestaurantDrafts(){
  if(state.renderedPage!=='restaurants'||state.skipDraftCapture){state.skipDraftCapture=false;return}
  for(const prefix of ['google','manual','edit']){
   const key=prefix==='edit'?'edit:'+state.renderedEditingId:prefix;if(prefix==='edit'&&!state.renderedEditingId)continue;
-  const ids=prefix==='google'?['googlePaste','googleName','googleAddress','googleMode','googleValue','googleIcon']:prefix==='manual'?['restName','restCategory','manualMode','manualValue','manualIcon']:['editName','editCategory','editAddress','editMode','editValue','editIcon'];
+  const ids=prefix==='google'?['googlePaste','googleName','googleAddress','googleMode','googleValue','googleIcon']:prefix==='manual'?['restName','restCategory','manualAddress','manualMode','manualValue','manualIcon']:['editName','editCategory','editAddress','editMode','editValue','editIcon'];
   const draft=state.restaurantDrafts[key]||{};for(const id of ids){const input=$(id);if(input)draft[id]=input.value}state.restaurantDrafts[key]=draft;
  }
 }
@@ -597,7 +627,7 @@ async function getTown(){
  try{localStorage.setItem('gw_town_cache',JSON.stringify(townCache))}catch{}
  await findNearby(lat,lon);
 }
-const ownerActions=new Set(['createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','savePollSettings','deletePoll','clearHistory']);
+const ownerActions=new Set(['createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','confirmLocation','useSavedLocation','editMatchedLocation','viewSavedLocation','savePollSettings','deletePoll','clearHistory']);
 async function doAction(act,button){
  if(act==='installApp'){if(!installPrompt)return;const request=installPrompt;installPrompt=null;await request.prompt();await request.userChoice;render();return}
  if(act==='chooseGroupMember'){
@@ -716,6 +746,13 @@ startPreview(button.dataset.method);return}
   if(!confirm(reset?'Replace '+m.name+'’s personal link? The old link will stop working. Send them the new invitation afterward.':'Remove '+m.name+'’s voting access? Their personal link and group name will stop working. Saved votes stay in history.'))return;
   await rpc(reset?'gw_rotate_member':'gw_remove_member',{p_token:familyToken,p_member_id:m.id});await loadMembers();render();toast(reset?'Personal link reset. Copy and send the new invitation.':'Member voting access removed.');return;
  }
+ if(act==='confirmLocation'){await confirmRestaurantLocation();return}
+ if(act==='useSavedLocation'){await confirmRestaurantLocation(button.dataset.id);return}
+ if(act==='cancelLocationReview'){state.restaurantReview=null;render();return}
+ if(act==='viewSavedLocation'||act==='editMatchedLocation'){
+  if(!family.restaurants.some(r=>r.id===button.dataset.id))return;
+  state.restaurantReview=null;state.editingId=button.dataset.id;render();window.scrollTo({top:0,behavior:'smooth'});return;
+ }
  if(act==='editRestaurant'){state.editingId=button.dataset.id;render();window.scrollTo({top:0,behavior:'smooth'});return}
  if(act==='cancelRestaurant'){delete state.restaurantDrafts['edit:'+state.editingId];state.skipDraftCapture=true;state.editingId=null;render();return}
  if(act==='previewRestaurant'){
@@ -727,6 +764,8 @@ startPreview(button.dataset.method);return}
         address=$('editAddress')?.value.trim()||'';
   if(!name)throw Error('Enter a restaurant name');
   const appearance=readAppearance('edit');
+  const original=family.restaurants.find(r=>r.id===id);
+  if(original&&window.GoodnightsMaps.locationKey(original.address)!==window.GoodnightsMaps.locationKey(address)&&!confirm('Change this saved address? This keeps its ID and voting history but clears its OSM identity and coordinates. For another branch, cancel and add a separate location.'))return;
   await safe(async()=>{
    await rpc('gw_update_restaurant',{p_token:familyToken,p_restaurant_id:id,p_name:name,
      p_category:category,p_address:address,p_icon_mode:appearance.icon_mode,p_icon_value:appearance.icon_value});
@@ -735,15 +774,9 @@ startPreview(button.dataset.method);return}
  }
  if(act==='toggleAdd'){state.adding=!state.adding;render();return}
  if(act==='addManual'){
-  const name=$('restName')?.value.trim(),category=$('restCategory')?.value.trim();
+  const name=$('restName')?.value.trim(),category=$('restCategory')?.value.trim()||'',address=$('manualAddress')?.value.trim()||'';
   if(!name)throw Error('Enter a restaurant name.');
-  const appearance=readAppearance('manual');
-  await safe(async()=>{
-   const id=await rpc('gw_add_restaurant',{p_token:familyToken,p_name:name,p_category:category||'',p_address:''});
-   if(appearance.icon_mode!=='auto')await rpc('gw_update_restaurant',{p_token:familyToken,p_restaurant_id:id,
-     p_name:name,p_category:category||'',p_address:'',p_icon_mode:appearance.icon_mode,p_icon_value:appearance.icon_value});
-   await loadFamily();state.adding=false;render();toast(name+' added to your list');
-  });return;
+  reviewRestaurant({name,category,address,...readAppearance('manual')});return;
  }
  if(act==='archive'){
   if(!confirm('Hide this restaurant from future votes?'))return;
@@ -770,16 +803,7 @@ startPreview(button.dataset.method);return}
   const name=($('googleName')?.value.trim()||pasted.name||'').slice(0,120);
   const address=($('googleAddress')?.value.trim()||pasted.address||'').slice(0,240);
   if(!name)throw Error('Enter a restaurant name. Short Google Maps links need the name entered separately.');
-  if(family.restaurants.some(r=>r.name.trim().toLowerCase()===name.trim().toLowerCase()))
-   throw Error('This restaurant name is already saved. To add another location, include the town in its name.');
-  const appearance=readAppearance('google');
-  await safe(async()=>{
-   const id=await rpc('gw_add_restaurant',{p_token:familyToken,p_name:name,p_category:'',p_address:address});
-   if(appearance.icon_mode!=='auto')await rpc('gw_update_restaurant',{p_token:familyToken,p_restaurant_id:id,
-     p_name:name,p_category:'',p_address:address,p_icon_mode:appearance.icon_mode,p_icon_value:appearance.icon_value});
-   await loadFamily();render();toast(name+' added to your list!');
-  });
-  return;
+  reviewRestaurant({name,address,category:'',...readAppearance('google')});return;
  }
  if(act==='townSearch'){await safe(getTown);return}
  if(act==='gpsSearch'){
@@ -788,7 +812,7 @@ startPreview(button.dataset.method);return}
  }
  if(act==='addNearby'){
   const r=state.nearby[Number(button.dataset.idx)];if(!r)return;
-  await safe(async()=>{await rpc('gw_add_restaurant',{p_token:familyToken,p_name:r.name,p_category:r.category,p_address:r.address,p_osm_id:r.osm_id,p_latitude:r.latitude,p_longitude:r.longitude});await loadFamily();render();toast('Saved '+r.name)});return;
+  reviewRestaurant({...r,icon_mode:'auto',icon_value:''});return;
  }
  if(act==='random'){
   const arr=pollChoices();for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]]}state.selected=new Set(arr.slice(0,Math.min(5,arr.length)).map(x=>x.id));render();return;
@@ -931,7 +955,7 @@ app.addEventListener('input',e=>{
  const t=e.target;if(t.id==='pollSearch'){state.pollSearch=t.value;const at=t.selectionStart;render();const field=$('pollSearch');field.focus();field.setSelectionRange(at,at)}
  else if(t.id==='restaurantSearch'){state.search=t.value;const at=t.selectionStart;render();const field=$('restaurantSearch');field.focus();field.setSelectionRange(at,at)}
  else if(t.id==='city')state.city=t.value;
- else if(t.id==='localName')state.restaurantName=t.value;
+ else if(['localName','restName','googleName'].includes(t.id)){if(t.id==='localName')state.restaurantName=t.value;const container=$(({localName:'localSavedSuggestions',restName:'manualSavedSuggestions',googleName:'googleSavedSuggestions'})[t.id]);if(container)container.innerHTML=savedLocationSuggestions(t.value)}
  else if(t.id==='voterName')state.name=t.value;
 });
 let swipeTouch=null;

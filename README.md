@@ -204,3 +204,11 @@ The organizer statistics page is deliberately deferred until there is more famil
 On tied results, organizers can choose **🎲 Pick a tied winner** or **Start a runoff**. The random draw runs once on the server, only after voting ends, among the leaders calculated from the saved ballots (including ranked transfers). The saved pick survives refreshes and repeated requests; it cannot be rerolled. Results, shared messages and images disclose the random choice and retain the real vote counts. Members cannot initiate a draw. `sql/random_tiebreaker.sql` is the additive database upgrade; existing votes and invitations remain valid.
 
 Ballot actions now occupy their own space at the bottom of the ballot and stay visible while scrolling, without a blank spacer below the name-switch button. Background refresh pauses while the page is hidden and skips overlapping requests; unresolved ties keep refreshing so a saved organizer pick arrives on open family results pages.
+
+## Location-aware restaurant saving (H4)
+
+Manual, pasted Maps and OSM additions now review the incoming name/address against saved locations. Exact OSM identity takes priority; manual identity uses name **and a non-empty address**. Same-name branches can stay separate. Uncertain or missing-address matches offer saved-place choices and an explicit separate-location action. Hidden matches discovered by the server are shown before a separate save proceeds. Reusing/restoring a saved row preserves its metadata, ID and voting history.
+
+Name fields also offer suggestions from the already-loaded saved list. Typing does not search an online service. Online OSM/Maps actions remain explicit, and failed searches retain manual details. Address edits require confirmation and clear stale source/coordinate data; use a separate entry for another branch.
+
+The additive migration is **prepared and unapplied**. [H4 implementation, private audit, deployment order and test instructions](docs/location-aware-saving.md) describe the new save RPC, guarded legacy signature, uniqueness/concurrency rules and verification limits. Do not rerun the baseline or apply this migration to production without separate deployment approval.
