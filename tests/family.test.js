@@ -4,7 +4,7 @@ test('invitations explain the method and include only the supplied personal link
  for(const method of ['approval','swipe','ranked']){const text=F.invite({method,meal:'Dinner'},'Sam','https://example.test/?member=personal&poll=vote');assert.match(text,/Sam/);assert.match(text,/personal/);assert.match(text,/🗳️/);assert.doesNotMatch(text,/undefined/)}
 });
 test('results describe winners, ties, zero ballots and correct mode stats',()=>{
- for(const [method,ballots,stat] of [['approval',[['a'],['a','b']],/2 approvals/],['swipe',[{a:true,b:false},{a:true,b:true}],/100% yes/],['ranked',[['a','b'],['a','b']],/final-round votes/]]){
+ for(const [method,ballots,stat] of [['approval',[['a'],['a','b']],/2 approvals/],['swipe',[{a:true,b:false},{a:true,b:true}],/100% yes/],['ranked',[['a','b'],['a','b']],/2 votes/]]){
   const poll={meal:'Dinner',method,options,ballots,voted_count:2};const text=F.result(poll,Voting.tally(poll),'https://example.test/?poll=vote');assert.match(text,/🏆 Pizza/);assert.match(text,stat);assert.doesNotMatch(text,/member=|family=/);
  }
  const tied={meal:'Lunch',method:'approval',options,ballots:[['a'],['b']],voted_count:2};assert.match(F.result(tied,Voting.tally(tied),'https://example.test/?poll=vote'),/tie/);
@@ -39,4 +39,13 @@ test('explicit cuisine themes carry matching emojis through invitations, reminde
  }
  assert.equal(F.theme({meal:'Dinner',cuisine:'unknown'}),null);assert.equal(F.theme({meal:'Lunch',cuisine:'pizza'}).title,'Pizza lunch');
  assert.equal(F.theme({meal:'Dinner',options:[{name:'Pizza place'}]}),null);
+});
+
+test('random results disclose the draw in shares and suppress consensus highlights',()=>{
+ const poll={meal:'Dinner',method:'approval',options:[{id:'a',name:'Pizza'},{id:'b',name:'Tacos'}],ballots:Array(4).fill(['a','b']),voted_count:4,tie_winner_id:'b'};
+ const counted=require('../voting.js').tally(poll),family=require('../family.js');
+ assert.deepEqual(family.highlights(poll,counted),[]);
+ const message=family.result(poll,counted,'https://example.test/?poll=fixture');
+ assert.match(message,/🏆 Tacos/);assert.match(message,/Chosen randomly between 2 tied leaders/);assert.match(message,/4 approvals/);
+ assert.doesNotMatch(message,/table full of yeses/);
 });

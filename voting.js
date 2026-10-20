@@ -44,7 +44,13 @@
       Object.assign(scores,final);
       details=`Instant-runoff count · ${rounds.length} round${rounds.length===1?'':'s'}.`;
     }
-    return {scores,winners,details,rounds};
+    const tiedWinners=winners.length>1?[...winners]:[];
+    const randomlyResolved=tiedWinners.includes(poll.tie_winner_id);
+    if(randomlyResolved){
+      winners=[poll.tie_winner_id];
+      details+=' 🎲 Chosen randomly between '+tiedWinners.length+' tied leaders. Votes are unchanged.';
+    }
+    return {scores,winners,details,rounds,tiedWinners,randomlyResolved};
   }
   root.GoodnightsVoting={tally};
   if(typeof module!=='undefined'&&module.exports) module.exports={tally};
