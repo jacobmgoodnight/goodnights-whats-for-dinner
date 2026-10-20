@@ -70,7 +70,7 @@ Open https://chatgpt.com/codex and select \`jacobmgoodnight/goodnights-whats-for
 
 - **Approval:** One or two approvals per person. The restaurant with the most approval votes wins.
 - **Consensus:** Every person responds yes/no to every option. With everyone voting on the same options, the most yes votes also gives the highest approval percentage.
-- **Ranked:** Each person ranks up to three choices. The app counts first choices and eliminates a lowest-scoring candidate per round, transferring preferences when possible. A remaining unresolved tie gets a fresh runoff instead of a random winner.
+- **Ranked:** Each person ranks up to three choices. The app counts first choices and eliminates equally lowest-scoring candidates together per round, transferring preferences when possible. For an unresolved tie, the organizer can start a runoff or pick once at random between the tied leaders.
 - **Tie:** If multiple candidates remain tied, the family organizer can launch a new ranked-choice poll between those candidates.
 
 ## Security and privacy
@@ -198,3 +198,9 @@ Already-voted names in the group picker are visibly disabled. The app rechecks v
 Waiting on uses only the animated dots, without a second static ellipsis. Results celebrate once per poll in that browser tab’s session, using the cuisine’s emoji when present. A results celebration replaces the submission animation when the last ballot completes the vote. A short winner-card reveal, check arrival and avatar-button press feedback add small touches, all respecting reduced motion. Refreshing or rebuilding the results screen does not replay the celebration in the same session.
 
 The organizer statistics page is deliberately deferred until there is more family data.
+
+## Optional random tiebreaker
+
+On tied results, organizers can choose **🎲 Pick a tied winner** or **Start a runoff**. The random draw runs once on the server, only after voting ends, among the leaders calculated from the saved ballots (including ranked transfers). The saved pick survives refreshes and repeated requests; it cannot be rerolled. Results, shared messages and images disclose the random choice and retain the real vote counts. Members cannot initiate a draw. `sql/random_tiebreaker.sql` is the additive database upgrade; existing votes and invitations remain valid.
+
+Ballot actions now occupy their own space at the bottom of the ballot and stay visible while scrolling, without a blank spacer below the name-switch button. Background refresh pauses while the page is hidden and skips overlapping requests; unresolved ties keep refreshing so a saved organizer pick arrives on open family results pages.

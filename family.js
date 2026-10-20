@@ -11,15 +11,15 @@
  function result(poll,tally,url){
   const winners=(poll.options||[]).filter(r=>tally.winners.includes(r.id));
   const heading=winners.length===1?'🏆 '+winners[0].name:winners.length?'🤝 It’s a tie: '+winners.map(r=>r.name).join(' / '):'🍽️ No winner this time';
-  const scores=(poll.options||[]).filter(r=>poll.method!=='ranked'||r.id in (tally.rounds.at(-1)||{})).sort((a,b)=>tally.scores[b.id]-tally.scores[a.id]).slice(0,3).map(r=>`${winners.some(w=>w.id===r.id)?'⭐':'•'} ${r.name}: ${poll.method==='swipe'?Math.round(100*tally.scores[r.id]/Math.max(1,poll.voted_count))+'% yes':tally.scores[r.id]+(poll.method==='ranked'?' final-round votes':' approvals')}`).join('\n');
+  const scores=(poll.options||[]).filter(r=>poll.method!=='ranked'||r.id in (tally.rounds.at(-1)||{})).sort((a,b)=>tally.scores[b.id]-tally.scores[a.id]).slice(0,3).map(r=>`${winners.some(w=>w.id===r.id)?'⭐':'•'} ${r.name}: ${poll.method==='swipe'?Math.round(100*tally.scores[r.id]/Math.max(1,poll.voted_count))+'% yes':tally.scores[r.id]+(poll.method==='ranked'?' votes':' approvals')}`).join('\n');
   const place=winners.length===1?winners[0]:null;
   const where=place?.address?'\n📍 '+place.address:'';
   const fun=highlights(poll,tally).map(s=>s.emoji+' '+s.title+' — '+s.detail).join('\n');
   const t=theme(poll);
-  return `${t?t.emoji:'🍽️'} Goodnights • ${t?t.title:poll.meal}${winners.length===1?' is decided!':winners.length?' needs a tiebreaker':' results'}\n\n${heading}${where}\n🧡 ${poll.voted_count} family ballots · ${poll.options.length} contenders\n${tally.details}\n\n${scores}${fun?'\n\n'+fun:''}\n\n📊 Results & directions:\n${url}\n\n${winners.length===1?(t?.food==='Pizza'?'See you for a slice! 🍕':t?.food==='Mexican'?'Taco ’bout a good choice! 🌮':'See you at the table! 🍴'):winners.length?'One more vote to settle dinner! 🗳️':'Let’s try another family vote. 🍽️'}`;
+  return `${t?t.emoji:'🍽️'} Goodnights • ${t?t.title:poll.meal}${winners.length===1?' is decided!':winners.length?' needs a tiebreaker':' results'}\n\n${heading}${where}\n🧡 ${poll.voted_count} family ballots · ${poll.options.length} contenders\n${tally.details}\n\n${scores}${fun?'\n\n'+fun:''}\n\n📊 Results & directions:\n${url}\n\n${winners.length===1?(t?.food==='Pizza'?'See you for a slice! 🍕':t?.food==='Mexican'?'Taco ’bout a good choice! 🌮':'See you at the table! 🍴'):winners.length?'Our organizer will help settle the tie. 🤝':'Let’s try another family vote. 🍽️'}`;
  }
  function highlights(poll,tally){
-  const n=poll.voted_count||0;if(n<3||tally.winners.length!==1)return [];
+  const n=poll.voted_count||0;if(n<3||tally.randomlyResolved||tally.winners.length!==1)return [];
   const id=tally.winners[0],support=tally.scores[id]||0;
   if(poll.method==='ranked'){
    const first=tally.rounds[0]||{},initial=first[id]||0;

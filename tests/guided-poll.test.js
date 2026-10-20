@@ -1,11 +1,11 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const tick=()=>new Promise(r=>setImmediate(r));
-async function setup({owner=true,memberId='m0',failPeople=false,anonymous=false,method='approval',allowHome=true,group=false,saved=false,welcome=false,sharedStore={},pollId='p1',cuisine='',familyId='family-fixture',raceVote=false,pizzaOnly=false}={}){
+async function setup({owner=true,memberId='m0',failPeople=false,anonymous=false,method='approval',allowHome=true,group=false,saved=false,welcome=false,sharedStore={},pollId='p1',cuisine='',familyId='family-fixture',raceVote=false,pizzaOnly=false,tied=false}={}){
  const calls=[],shares=[],listeners={},store=sharedStore,nodes={},timers=[];const photo='data:image/jpeg;base64,/9j/AAA=';
  const people=[{id:'m0',name:'Taylor',avatar:photo,token:anonymous?'ab'.repeat(24):'fixture-taylor',phone:'taylor@icloud.com',active:true},{id:'m1',name:'Morgan',avatar:'🦊',token:'fixture-morgan',phone:'+15551234567',active:true},{id:'m2',name:'Sam',avatar:'🏀',token:'fixture-sam',phone:'',active:true}];
  const restaurants=[{id:'r0',name:'Pizza night',category:'Pizza',address:'100 Main St, Town'},{id:'r1',name:pizzaOnly?'Another pizza place':'Taco time',category:pizzaOnly?'Pizza':'Mexican',address:'Town'}];
- let chosen=['m0','m1'],voted=new Set(saved?[memberId]:[]),statusError=failPeople,confirmResult=true,ineligibleOverride=false;let settings={allow_member_home:allowHome,group_join_token:group?'fixture-group':null};
- const current=()=>({id:pollId,cuisine,meal:'Dinner',method,allow_member_home:settings.allow_member_home,status:voted.size>=chosen.length?'closed':'open',expected_voters:chosen.length,voted_count:voted.size,roster_enabled:true,options:restaurants,ballots:voted.size>=chosen.length?[...voted].map(()=>['r0']):null});
+ let chosen=['m0','m1'],voted=new Set(saved?[memberId]:[]),statusError=failPeople,confirmResult=true,ineligibleOverride=false;let tieWinner=null;let settings={allow_member_home:allowHome,group_join_token:group?'fixture-group':null};
+ const current=()=>({id:pollId,tie_winner_id:tieWinner,cuisine,meal:'Dinner',method,allow_member_home:settings.allow_member_home,status:voted.size>=chosen.length?'closed':'open',expected_voters:chosen.length,voted_count:voted.size,roster_enabled:true,options:restaurants,ballots:voted.size>=chosen.length?[...voted].map((_,i)=>[tied?'r'+i:'r0']):null});
  const family=()=>({name:'Fixture',restaurants,polls:[current()]});const app={innerHTML:'',addEventListener:(n,f)=>listeners[n]=f};
  const ctx={URL,crypto:require('node:crypto').webcrypto,console:{error(){},log(){}},setTimeout:()=>0,clearTimeout(){},setInterval:f=>{timers.push(f);return timers.length},clearInterval(){},window:{GW_CONFIG:{supabaseUrl:'https://fixture.test',publishableKey:'fixture'},scrollTo(){}},location:{href:(welcome?'https://example.test/':group&&!owner?'https://example.test/?poll=p1&join=fixture-group':anonymous?'https://example.test/?poll=p1':owner?'https://example.test/?family=fixture-owner':'https://example.test/?member='+people.find(p=>p.id===memberId).token+'&poll=p1').replace(/poll=p1/g,'poll='+pollId),pathname:'/'},confirm:()=>confirmResult,history:{replaceState(){}},localStorage:{getItem:k=>store[k]??null,key:i=>Object.keys(store)[i]??null,get length(){return Object.keys(store).length},setItem:(k,v)=>store[k]=v,removeItem:k=>delete store[k]},document:{getElementById:id=>({app,modeBadge:{},brand:{addEventListener(){}},toast:{classList:{add(){},remove(){}}}}[id]||nodes[id])},navigator:{share:async data=>shares.push(data),clipboard:{writeText:async t=>shares.push({text:t})}},fetch:async(url,request)=>{
   const fn=url.split('/').pop(),p=JSON.parse(request.body);calls.push({fn,p});let result;
@@ -14,13 +14,14 @@ async function setup({owner=true,memberId='m0',failPeople=false,anonymous=false,
   else if(fn==='gw_poll_settings'){if(p.p_allow_member_home!==undefined)settings.allow_member_home=p.p_allow_member_home;if(p.p_group_join!==undefined)settings.group_join_token=p.p_group_join?'fixture-group':null;result=settings}
   else if(fn==='gw_delete_polls')result=1;else if(fn==='gw_rotate_member')result=true;else if(fn==='gw_remove_member'){people.find(m=>m.id===p.p_member_id).active=false;result=true}
   else if(fn==='gw_group_poll'){if(p.p_action==='people')result={family_id:familyId,rostered:true,eligible:chosen.includes(p.p_member_id),people:people.filter(m=>chosen.includes(m.id)).map(m=>({id:m.id,name:m.name,avatar:p.p_include_avatars===false?null:m.avatar,active:true,voted:voted.has(m.id)}))};else if(p.p_action==='identity'){if(raceVote)voted.add(p.p_member_id);const m=people.find(m=>m.id===p.p_member_id);result={id:m.id,name:m.name,avatar:m.avatar}}else if(p.p_action==='has_voted')result=voted.has(p.p_member_id);else if(p.p_action==='vote'){voted.add(p.p_member_id);result={ok:true}}}
+  else if(fn==='gw_resolve_tie_random'){tieWinner='r1';result=tieWinner}
   else if(fn==='gw_get_poll')result=current();else if(fn==='gw_member_has_voted')result=voted.has(memberId);
   else if(fn==='gw_get_poll_people'){if(statusError)throw Error('Unavailable');result={rostered:true,eligible:chosen.includes(memberId)&&!owner&&!ineligibleOverride,people:people.filter(m=>chosen.includes(m.id)).map(m=>({id:m.id,name:m.name,avatar:p.p_include_avatars?m.avatar:null,active:true,voted:voted.has(m.id)}))}}
   else if(fn==='gw_create_poll_configured'||fn==='gw_create_poll_themed'){chosen=p.p_member_ids;voted=new Set();result='p1'}else if(fn==='gw_vote_as_member'){voted.add(memberId);result={ok:true}}else throw Error(fn);
   return {ok:true,json:async()=>result};
  }};
  vm.createContext(ctx);for(const f of ['voting.js','maps.js','logos.js','family.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',f),'utf8'),ctx);for(let i=0;i<4;i++)await tick();
- return {app,calls,shares,photo,listeners,nodes,store,setConfirm:value=>confirmResult=value,forceIneligible:()=>ineligibleOverride=true,async click(act,data={}){await listeners.click({preventDefault(){},target:{closest:()=>({dataset:{act,...data}})}});await tick()},vote:id=>voted.add(id),statusError:value=>statusError=value,pollTick:async()=>{await timers.at(-1)();await tick()}};
+ return {app,calls,shares,photo,listeners,nodes,store,setTieWinner:value=>tieWinner=value,setHidden:value=>ctx.document.hidden=value,setConfirm:value=>confirmResult=value,forceIneligible:()=>ineligibleOverride=true,async click(act,data={}){await listeners.click({preventDefault(){},target:{closest:()=>({dataset:{act,...data}})}});await tick()},vote:id=>voted.add(id),statusError:value=>statusError=value,pollTick:async()=>{await timers.at(-1)();await tick()}};
 }
 test('wizard validates places/people and sends only selected participant IDs',async()=>{
  const h=await setup();await h.click('nav',{page:'create'});await h.click('createGo',{step:'3'});assert.match(h.app.innerHTML,/Pick the contenders/);await h.click('createPoll');assert.equal(h.calls.filter(c=>c.fn==='gw_create_poll_configured').length,0);
@@ -126,4 +127,23 @@ test('member management uses separate guarded actions instead of a command promp
 test('older per-poll name memories migrate only when there is one unambiguous invited identity',async()=>{
  const same={gw_group_vote_old:JSON.stringify({token:'old-scoped',memberId:'m0'})};const h=await setup({owner:false,group:true,pollId:'next',sharedStore:same});assert.match(h.app.innerHTML,/data-approval=/);assert.equal(h.store['gw_group_last_person_family-fixture'],'m0');await h.click('changeGroupMember');assert.match(h.app.innerHTML,/Who's voting/);
  const shared={gw_group_vote_old:JSON.stringify({token:'old',memberId:'m0'}),gw_group_vote_other:JSON.stringify({token:'other',memberId:'m1'})};const ambiguous=await setup({owner:false,group:true,pollId:'next',sharedStore:shared});assert.match(ambiguous.app.innerHTML,/Who's voting/);
+});
+
+test('only organizers can confirm one random draw; tied member results observe the saved pick',async()=>{
+ const h=await setup({tied:true});h.vote('m0');h.vote('m1');await h.click('openpoll',{id:'p1'});
+ assert.match(h.app.innerHTML,/data-act="randomTie"/);assert.match(h.app.innerHTML,/data-act="runoff"/);
+ h.setConfirm(false);await h.click('randomTie');assert.equal(h.calls.filter(c=>c.fn==='gw_resolve_tie_random').length,0);
+ h.setConfirm(true);await h.click('randomTie');assert.equal(h.calls.filter(c=>c.fn==='gw_resolve_tie_random').length,1);
+ assert.match(h.app.innerHTML,/Chosen randomly between 2 tied leaders/);assert.doesNotMatch(h.app.innerHTML,/data-act="randomTie"|data-act="runoff"/);
+ await h.click('randomTie');assert.equal(h.calls.filter(c=>c.fn==='gw_resolve_tie_random').length,1);
+ const m=await setup({owner:false,tied:true});m.vote('m0');m.vote('m1');await m.pollTick();assert.doesNotMatch(m.app.innerHTML,/data-act="randomTie"/);
+ await m.click('randomTie');assert.equal(m.calls.filter(c=>c.fn==='gw_resolve_tie_random').length,0);
+ // Simulate an organizer's draw on another device, then its public refresh.
+ const currentCall=m.calls.length;m.setTieWinner('r1');await m.pollTick();assert.ok(m.calls.length>currentCall);assert.match(m.app.innerHTML,/Chosen randomly between 2 tied leaders/);assert.match(m.app.innerHTML,/<h1>Taco time<\/h1>/);
+});
+
+test('background polling pauses on hidden pages and catches up when visible',async()=>{
+ const h=await setup({owner:false}),before=h.calls.length;
+ h.setHidden(true);h.vote('m1');await h.pollTick();assert.equal(h.calls.length,before);
+ h.setHidden(false);await h.pollTick();assert.ok(h.calls.length>before);assert.match(h.app.innerHTML,/1 of 2 votes in/);
 });

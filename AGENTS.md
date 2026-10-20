@@ -62,3 +62,5 @@ https://jacobmgoodnight.github.io/goodnights-whats-for-dinner/
 - Members has explicit reset/remove actions with confirmations; no typed command prompts. Removing a member preserves historical ballots but also disables current voting access.
 - Use only animated dots beside Waiting on. Results animation is once per poll/tab session and supersedes submission animation for the final voter. Preview votes do not celebrate as real results. Honor reduced motion for all added movement.
 - Defer an organizer statistics page until the user asks again after more data accumulates.
+
+- Optional random tiebreakers require organizer credentials and a finished, genuinely tied tally. gw_resolve_tie_random computes leaders on the server, locks the poll and saves one immutable pick. Never reroll in the browser, change ballots/counts, or select eliminated ranked candidates. Preserve the random-choice disclosure in every results surface and suppress misleading consensus highlights. sql/random_tiebreaker.sql is additive.
