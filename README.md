@@ -69,7 +69,7 @@ Open https://chatgpt.com/codex and select \`jacobmgoodnight/goodnights-whats-for
 ## How voting works
 
 - **Approval:** One or two approvals per person. The restaurant with the most approval votes wins.
-- **Consensus:** Every person responds yes/no to every option. With everyone voting on the same options, the most yes votes also gives the highest approval percentage.
+- **Consensus:** Every person responds yes/no to every option. The most yes votes wins, with the actual support count shown. If every place gets zero yes votes, results say **Nothing sounds good tonight** and the organizer can start a new shortlist. Positive ties retain runoff and random-pick options.
 - **Ranked:** Each person ranks up to three choices. The app counts first choices and eliminates equally lowest-scoring candidates together per round, transferring preferences when possible. For an unresolved tie, the organizer can start a runoff or pick once at random between the tied leaders.
 - **Tie:** If multiple candidates remain tied, the family organizer can launch a new ranked-choice poll between those candidates.
 
@@ -204,6 +204,29 @@ The organizer statistics page is deliberately deferred until there is more famil
 On tied results, organizers can choose **🎲 Pick a tied winner** or **Start a runoff**. The random draw runs once on the server, only after voting ends, among the leaders calculated from the saved ballots (including ranked transfers). The saved pick survives refreshes and repeated requests; it cannot be rerolled. Results, shared messages and images disclose the random choice and retain the real vote counts. Members cannot initiate a draw. `sql/random_tiebreaker.sql` is the additive database upgrade; existing votes and invitations remain valid.
 
 Ballot actions now occupy their own space at the bottom of the ballot and stay visible while scrolling, without a blank spacer below the name-switch button. Background refresh pauses while the page is hidden and skips overlapping requests; unresolved ties keep refreshing so a saved organizer pick arrives on open family results pages.
+
+## H1: honest consensus outcomes (pending deployment)
+
+All-no consensus results have no winners, trophies, random draw, runoff, or results celebration. Results messages and images use the same outcome. **Start a new shortlist** opens the organizer's existing Places setup with no restaurants selected; review people, method and settings before creating a fresh poll. The original poll, ballots and links remain available. Positive plurality winners show “Most yes votes” and their support numerator/denominator. Existing saved random draws remain visible and disclose both the random selection and any historical zero support.
+
+The additive migration is [20261020182044_honest_consensus_outcomes.sql](supabase/migrations/20261020182044_honest_consensus_outcomes.sql). It replaces only `gw_resolve_tie_random`, retaining organizer checks, the poll row lock, immutable saved-pick return, ranked elimination, and narrow execution grants. New all-no consensus draws fail on the server even from an older browser. Approval and ranked-choice rules stay unchanged. No migration has been applied to the live database for H1.
+
+Proposed deployment order, after separate approval:
+
+1. Verify the target already has `sql/random_tiebreaker.sql` and the intervening applied upgrades; take the private backup required for production changes. The historical `database.sql` is not a production upgrade script.
+2. Rehearse the migration and fixtures in an isolated database. Review actual deployed function definitions/grants against the repository. Apply only the new migration to production in a transaction, then verify its function/grants. Do not rerun the old migration or baseline.
+3. Deploy the matching static JavaScript through the normal reviewed main/Pages release. Applying the guard first protects calls from cached older clients. Validate public/member/organizer results, positive ties/runoffs, all-no recovery and historical saved draws on synthetic staging polls before release.
+4. Retain the guard if the UI must roll back. Restoring the old server function would reopen zero-support random draws. No data rollback is needed because this migration rewrites no rows.
+
+Verification: `node --test tests/*.test.js` covers tally, shares, organizer/member UI, image canvas text, celebrations, demo direct calls, and existing behavior. An optional isolated PostgreSQL check uses PGlite, installed outside this no-build repository:
+
+```powershell
+npm install --prefix "$env:TEMP/gw-h1-test-runtime" --no-save --package-lock=false @electric-sql/pglite@0.5.10
+$env:GW_PGLITE_MODULE="$env:TEMP/gw-h1-test-runtime/node_modules/@electric-sql/pglite"
+node tests/sql/run-honest-consensus.cjs
+```
+
+The runner creates only an in-memory database, loads the baseline and original draw function (omitting its unrelated reader patch), tests a saved pre-upgrade draw and rejects a fresh all-no call as `anon`, then runs [rollback-only SQL fixtures](tests/sql/honest_consensus.rollback.sql). It covers early closure, all three methods, authorization guards, unchanged ballots/family credentials, runoffs, ranked transfers and grants. It does not reconstruct the complete deployed Supabase/member schema. Live database state/advisors, full PostgREST integration, genuine concurrent multi-connection locking, rendered image layout, physical iPhone/Android and real multi-phone flows still need staging/release verification. VM image tests inspect canvas drawing text, not pixels.
 
 ## Repeat a dinner into a draft
 
