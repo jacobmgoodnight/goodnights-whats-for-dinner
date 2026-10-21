@@ -38,6 +38,19 @@ function parsePaste(raw){
   }
   return {name:name.slice(0,120),address:address.slice(0,240),shortLink};
 }
-root.GoodnightsMaps={searchUrl,parsePaste};
+// Conservative identity: preserve punctuation/accents. Loose names only suggest review.
+function locationKey(value){return String(value||'').replace(/[A-Z]/g,c=>c.toLowerCase()).replace(/[\t\n\v\f\r ]+/g,' ').trim()}
+function looseName(value){return locationKey(value).replace(/[^a-z0-9]/g,'')}
+function locationMatches(saved,draft){
+ const name=locationKey(draft.name),address=locationKey(draft.address),osm=locationKey(draft.osm_id);
+ return saved.map(r=>{
+  const sameSource=!!osm&&locationKey(r.osm_id)===osm;
+  const sameManual=!osm&&!!address&&locationKey(r.name)===name&&locationKey(r.address)===address;
+  const possible=locationKey(r.name)===name||!!looseName(name)&&looseName(r.name)===looseName(name)||!!address&&locationKey(r.address)===address;
+  return {...r,match:sameSource||sameManual?'exact':possible?'possible':null};
+ }).filter(r=>r.match).sort((a,b)=>(a.match==='exact'?0:1)-(b.match==='exact'?0:1));
+}
+function savedSuggestions(saved,query){const key=locationKey(query);return key?saved.filter(r=>r.active!==false&&locationKey([r.name,r.address].join(' ')).includes(key)).slice(0,5):[]}
+root.GoodnightsMaps={searchUrl,parsePaste,locationKey,locationMatches,savedSuggestions};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.GoodnightsMaps;
 })(typeof window!=='undefined'?window:{});

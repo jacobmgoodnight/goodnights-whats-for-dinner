@@ -205,7 +205,7 @@ On tied results, organizers can choose **🎲 Pick a tied winner** or **Start a 
 
 Ballot actions now occupy their own space at the bottom of the ballot and stay visible while scrolling, without a blank spacer below the name-switch button. Background refresh pauses while the page is hidden and skips overlapping requests; unresolved ties keep refreshing so a saved organizer pick arrives on open family results pages.
 
-## H1: honest consensus outcomes (pending deployment)
+## H1: honest consensus outcomes
 
 All-no consensus results have no winners, trophies, random draw, runoff, or results celebration. Results messages and images use the same outcome. **Start a new shortlist** opens the organizer's existing Places setup with no restaurants selected; review people, method and settings before creating a fresh poll. The original poll, ballots and links remain available. Positive plurality winners show “Most yes votes” and their support numerator/denominator. Existing saved random draws remain visible and disclose both the random selection and any historical zero support.
 
@@ -246,3 +246,14 @@ The existing Goodnights brand, button and text colors are preserved. Swipe cards
 
 No voting rules, backend, data or credentials change. [Before/after screenshots and QA evidence](docs/qa/q1-h3/README.md) document synthetic mobile/keyboard/gesture/failed-save checks and physical-device limitations. Run the normal Node suite with `node --test tests/*.test.js`; the optional real-browser runner is documented there.
 
+## Location-aware restaurant saving (H4)
+
+Manual, pasted Maps and OSM additions now review the incoming name/address against saved locations. Exact OSM identity takes priority; manual identity uses name **and a non-empty address**. Same-name branches can stay separate. Uncertain or missing-address matches offer saved-place choices and an explicit separate-location action. Hidden matches discovered by the server are shown before a separate save proceeds. Reusing/restoring a saved row preserves its metadata, ID and voting history.
+
+Name fields also offer suggestions from the already-loaded saved list. Typing does not search an online service. Online OSM/Maps actions remain explicit, and failed searches retain manual details. Address edits require confirmation and clear stale source/coordinate data; use a separate entry for another branch.
+
+The approved additive migration is **applied**; see the [release record](docs/release-20261021.md). [H4 implementation, private audit, deployment order and test instructions](docs/location-aware-saving.md) describe the new save RPC, guarded legacy signature, uniqueness/concurrency rules and verification limits. Do not rerun the baseline or reapply migrations.
+
+## Approved release
+
+[October 20–21 release record](docs/release-20261021.md): H1, H2, H4 and Q1/H3 with the original brand/button/text colors. H5 meal history/rotation is deferred. The record covers private backup verification, applied migrations, combined tests, release order and physical-device limitations.

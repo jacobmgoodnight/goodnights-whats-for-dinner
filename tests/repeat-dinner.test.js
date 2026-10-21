@@ -52,6 +52,16 @@ async function setup({owner=true,rostered=true,method='ranked',cuisine='pizza',c
 }
 const creates=h=>h.calls.filter(c=>c.fn.startsWith('gw_create_poll'));
 
+test('all-no recovery clears a previous repeat draft without changing the original vote',async()=>{
+ const h=await setup({method:'swipe'});h.source.tie_winner_id=null;
+ h.source.ballots=h.source.ballots.map(()=>Object.fromEntries(h.restaurants.map(r=>[r.id,false])));
+ const original=JSON.stringify(h.source);
+ await h.click('repeatDinner',{id:'old-poll'});assert.match(h.app.innerHTML,/Use this dinner again\./);
+ await h.click('openpoll',{id:'old-poll'});assert.match(h.app.innerHTML,/Nothing sounds good tonight/);
+ await h.click('newShortlist');assert.match(h.app.innerHTML,/Start a vote\./);assert.doesNotMatch(h.app.innerHTML,/aria-label="Dinner draft"/);
+ assert.match(h.app.innerHTML,/0 places selected/);assert.equal(creates(h).length,0);assert.equal(JSON.stringify(h.source),original);
+});
+
 for(const method of ['approval','swipe','ranked'])test('repeat '+method+' opens Review, permits edits and creates only a fresh confirmed poll',async()=>{
  const h=await setup({method});await h.click('nav',{page:'history'});assert.match(h.app.innerHTML,/Use this dinner again/);
  await h.click('repeatDinner',{id:'old-poll'});assert.match(h.app.innerHTML,/aria-current="step" data-act="createGo" data-step="3"/);

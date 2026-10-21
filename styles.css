@@ -105,3 +105,8 @@ main{padding:22px 20px 30px}h1{font-size:clamp(33px,7vw,52px);line-height:1.05;l
 .vote-btns{margin-top:12px}.vote-btns .btn{min-width:0;padding:13px 10px}
 .ballot-flow .between{flex-wrap:wrap}.ballot-summary{flex-wrap:wrap}.ballot-summary span{text-align:left}
 @media(prefers-reduced-motion:reduce){.votecard{transform:none!important;transition:none!important}}
+
+/* Location review keeps saved addresses and explicit choices readable on phones. */
+.location-review .item{align-items:flex-start;flex-wrap:wrap}.location-review .item-body{flex:1 1 160px}.location-review .item>.btn-row{flex:1 1 180px}
+.location-review strong,[id$="SavedSuggestions"] strong{overflow-wrap:anywhere}.location-review>p{overflow-wrap:anywhere}
+.location-review:focus{outline:3px solid var(--orange-dark);outline-offset:2px}
