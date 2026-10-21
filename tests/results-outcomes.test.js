@@ -17,13 +17,18 @@ function harness(){
  vm.createContext(ctx);
  for(const file of ['voting.js','maps.js','logos.js','family.js','app.js']){
   let source=fs.readFileSync(path.join(__dirname,'..',file),'utf8');
-  if(file==='app.js')source=source.replace('init();',`demoInit();window.h1={makeResultsCard,demoRpc,pollNeedsRefresh,celebrate(value,preview=false){poll=value;state.preview=preview;celebrateResults()},store:()=>store};`);
+  if(file==='app.js')source=source.replace('init();',`demoInit();window.h1={makeResultsCard,demoRpc,pollNeedsRefresh,resultsArrivalMessage,celebrate(value,preview=false){poll=value;state.preview=preview;celebrateResults()},store:()=>store};`);
   vm.runInContext(source,ctx);
  }
  return {api:ctx.window.h1,texts,animations,store};
 }
 const options=[{id:'a',name:'Pizza',category:'Pizza'},{id:'b',name:'Tacos',category:'Mexican'}];
 const allNo={id:'no-choice',meal:'Dinner',method:'swipe',status:'closed',options,voted_count:2,ballots:[{a:false,b:false},{a:false,b:false}]};
+
+test('background completion toast stays consistent with an all-no outcome',()=>{
+ const h=harness();assert.equal(h.api.resultsArrivalMessage(allNo),'Nothing sounds good tonight. Start a new shortlist.');
+ assert.doesNotMatch(h.api.resultsArrivalMessage({...allNo,id:'empty',voted_count:0,ballots:[]}),/🏆|picked|winner|Start a new shortlist/);
+});
 
 test('result image uses no-choice wording without winner stars, trophy or decided claims',async()=>{
  const h=harness();await h.api.makeResultsCard({...allNo,sharePeople:[{name:'Fixture',avatar:'🙂'}]});

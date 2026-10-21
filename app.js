@@ -39,6 +39,7 @@ async function restoreGroupPerson(){
  groupAccess.memberId=id;try{member=await groupRpc('identity');await loadVoterStatus(poll);poll.can_vote=true;rememberGroupPerson()}catch{groupAccess.memberId=null;member=null}
 }
 const celebratedResults=new Set();
+function resultsArrivalMessage(value){return window.GoodnightsVoting.tally(value).outcome==='no-choice'?'Nothing sounds good tonight. Start a new shortlist.':'Results are in. Share them with your family below.'}
 function celebrateResults(){
  if(state.preview||!poll?.voted_count||['no-choice','empty'].includes(window.GoodnightsVoting.tally(poll).outcome)||celebratedResults.has(poll.id))return;
  const key='gw_results_seen_'+poll.id;celebratedResults.add(poll.id);
@@ -539,7 +540,7 @@ async function openPoll(id){
     if(prev.tie_winner_id!==next.tie_winner_id||prev.voted_count!==next.voted_count||prev.status!==next.status||JSON.stringify(prev.people)!==JSON.stringify(next.people)||prev.people_error!==next.people_error||wasRefreshError!==state.refreshError){
      if(next.status==='open'&&document.activeElement?.matches?.('select,input,textarea'))state.deferredPollRender=true;else render();
     }
-    if(!pollNeedsRefresh(next))clearInterval(pollTimer);if(next.status==='closed'&&prev.status!=='closed'&&familyToken)toast('🏆 Results are in! Share them with your family below.')
+    if(!pollNeedsRefresh(next))clearInterval(pollTimer);if(next.status==='closed'&&prev.status!=='closed'&&familyToken)toast(resultsArrivalMessage(next))
    }catch{if(session===pollSession&&state.page==='poll'){state.refreshError=true;if(!document.activeElement?.matches?.('select,input,textarea'))render()}}finally{state.refreshingPoll=false}
   },8000);
  });
