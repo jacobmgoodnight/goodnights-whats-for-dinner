@@ -110,3 +110,14 @@ main{padding:22px 20px 30px}h1{font-size:clamp(33px,7vw,52px);line-height:1.05;l
 .location-review .item{align-items:flex-start;flex-wrap:wrap}.location-review .item-body{flex:1 1 160px}.location-review .item>.btn-row{flex:1 1 180px}
 .location-review strong,[id$="SavedSuggestions"] strong{overflow-wrap:anywhere}.location-review>p{overflow-wrap:anywhere}
 .location-review:focus{outline:3px solid var(--orange-dark);outline-offset:2px}
+
+/* Planning hierarchy and touch layout; existing colors and controls are retained. */
+.review-summary>.between{padding:14px 0;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.review-summary>.between:last-child{border-bottom:0}.review-summary>.between>div{flex:1 1 160px;min-width:0}.review-summary .item-detail{overflow-wrap:anywhere}
+.voting-options summary{min-height:44px;align-content:center;font-weight:800}.voting-options summary .subtle{display:block;margin:5px 0 8px;font-weight:400}
+.nomination-row{flex-wrap:wrap;align-items:flex-start}.nomination-row .item-body{flex:1 1 180px}.nomination-row>.btn-row{flex:1 1 180px}
+.tonight-card h1{overflow-wrap:anywhere}.tonight-card .between{flex-wrap:wrap}.tonight-card summary{min-height:44px;align-content:center}
+
+.review-summary .btn,.tonight-card .btn,.nomination-row .btn{min-height:44px}
+.card:has([data-act="usePreset"]) .item{flex-wrap:wrap}.card:has([data-act="usePreset"]) .btn,.card:has([data-act="enableAlerts"]) .btn{min-height:44px}
+h1,h2,.card strong{overflow-wrap:anywhere}.card>.between>div{min-width:0}

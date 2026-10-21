@@ -1,0 +1,6 @@
+project_id = "goodnights-whats-for-dinner"
+
+[functions.goodnights-organizer-alerts]
+# Private pg_cron dispatcher authenticates with its separate Vault worker secret.
+# Browser/public requests are rejected by the worker before it claims any delivery.
+verify_jwt = false

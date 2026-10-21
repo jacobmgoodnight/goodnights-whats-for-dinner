@@ -24,6 +24,7 @@ async function fixture(browser,method,{width=390,height=844,reducedMotion='no-pr
   if(url.pathname.startsWith('/rest/v1/rpc/')){
    const fn=url.pathname.split('/').pop(),p=route.request().postDataJSON();calls.push({fn,p});let result;
    if(fn==='gw_get_poll')result=poll();
+   else if(fn==='gw_planning_home')result={ready:true,can_nominate:true,nominations:[],events:[],presets:[],active_polls:[]};
    else if(fn==='gw_get_member')result={id:'fixture-member',name:'Taylor (test)',avatar:'🙂',family:{name:'Synthetic family',restaurants:options,polls:[poll()]}};
    else if(fn==='gw_get_poll_people')result={rostered:true,eligible:true,people:[{id:'fixture-member',name:'Taylor (test)',avatar:'🙂',active:true,voted:!!ballot}]};
    else if(fn==='gw_member_has_voted')result=!!ballot;

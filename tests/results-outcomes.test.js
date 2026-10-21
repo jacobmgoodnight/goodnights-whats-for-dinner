@@ -25,6 +25,10 @@ function harness(){
 const options=[{id:'a',name:'Pizza',category:'Pizza'},{id:'b',name:'Tacos',category:'Mexican'}];
 const allNo={id:'no-choice',meal:'Dinner',method:'swipe',status:'closed',options,voted_count:2,ballots:[{a:false,b:false},{a:false,b:false}]};
 
+test('custom titles and explicitly chosen captions render without changing the image outcome',async()=>{
+ const h=harness();await h.api.makeResultsCard({...allNo,title:'Friday <takeout>',shareCaption:'Our family <caption>'});assert.ok(h.texts.includes('Friday <takeout>'));assert.ok(h.texts.includes('Our family <caption>'));assert.match(h.texts.join('\n'),/Nothing sounds good tonight/);assert.doesNotMatch(h.texts.join('\n'),/🏆|⭐/);h.texts.length=0;await h.api.makeResultsCard({...allNo,title:'Friday <takeout>'});assert.doesNotMatch(h.texts.join('\n'),/Our family <caption>/);
+});
+
 test('background completion toast stays consistent with an all-no outcome',()=>{
  const h=harness();assert.equal(h.api.resultsArrivalMessage(allNo),'Nothing sounds good tonight. Start a new shortlist.');
  assert.doesNotMatch(h.api.resultsArrivalMessage({...allNo,id:'empty',voted_count:0,ballots:[]}),/🏆|picked|winner|Start a new shortlist/);

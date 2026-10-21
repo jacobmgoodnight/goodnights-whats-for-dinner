@@ -183,7 +183,7 @@ For a food-specific vote, choose **Pizza night**, **Mexican night**, or another 
 
 On the organizer or member home page, expand **Add Goodnights to your phone** for installation instructions (and a native install button where supported). The manifest includes 192px/512px PNGs plus an Apple Home Screen icon. If the installed app starts without a saved identity, paste the private personal or organizer link into the welcome screen; group invitations can also reconnect a specific vote. These links are validated against this site and verified before credentials are saved. The public manifest contains no credentials.
 
-Installation currently provides an app icon and standalone window, with online voting. It does **not** enable offline voting or background notifications. A future opt-in Web Push feature can alert the organizer when results finish, followed by organizer-controlled sharing (and later optional notifications to subscribed members). That needs subscription storage, secure server-side delivery, retries and revocation; checking a web page every few seconds cannot notify a closed page. On iPhone/iPad, push requires a Home Screen web app and user permission: [WebKit guidance](https://webkit.org/blog/13878/). Separate native organizer/member apps are unnecessary for this approach.
+Installation provides an app icon and standalone window, with online voting. The organizer planning upgrade adds explicit opt-in background notifications with private server delivery and revocation. Installation alone does not enable notifications. There is no offline voting. On iPhone/iPad, push requires a Home Screen web app and user permission: [WebKit guidance](https://webkit.org/blog/13878/). Separate native organizer/member apps are unnecessary for this approach.
 
 ## Cuisine personality, remembered names and celebrations
 
@@ -257,3 +257,11 @@ The approved additive migration is **applied**; see the [release record](docs/re
 ## Approved release
 
 [October 20–21 release record](docs/release-20261021.md): H1, H2, H4 and Q1/H3 with the original brand/button/text colors. H5 meal history/rotation is deferred. The record covers private backup verification, applied migrations, combined tests, release order and physical-device limitations.
+
+## Organizer Tonight and reusable dinner planning
+
+With an active vote, organizer Home prioritizes progress and waiting people. Without an active vote it restores **So... what’s for dinner?**, **Start a family vote**, and the existing management links. Review uses compact editable rows, with optional controls under **Voting options**.
+
+The upgrade adds explicit automatic positive-tie resolution, named editable dinner presets, organizer-reviewed family nominations, custom public poll titles, opt-in family captions on result images, and organizer alerts. Presets create no poll until confirmation. Messages remain user-sent. No palette changes or H5 meal/rotation features are included.
+
+[Implementation, verification and privacy](docs/organizer-planning.md). Four additive backend migrations and the private worker are applied. [Release record](docs/release-organizer-20261021.md) covers the database-first release, queue-privacy fix and remaining physical-device checks. Alerts require explicit per-device opt-in.
