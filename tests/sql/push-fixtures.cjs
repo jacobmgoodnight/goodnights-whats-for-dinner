@@ -49,5 +49,17 @@ module.exports=async function({c,Client,connection,root,token,person,other,place
  // A hosted network-extension error cannot undo the final ballot or its durable alert.
  await c.query("create or replace function net.http_post(url text,headers jsonb,body jsonb,timeout_milliseconds integer) returns bigint language plpgsql as $$begin raise exception 'synthetic dispatcher outage';end$$;");
  const outage=await emit();assert.equal((await c.query('select count(*)::int n from gw_ballots where poll_id=$1',[outage])).rows[0].n,2);assert.ok((await c.query('select count(*)::int n from gw_push_deliveries d join gw_dinner_events e on e.id=d.event_id where e.poll_id=$1',[outage])).rows[0].n>0);
+ // Rehearse the hosted queue-privacy fix: direct HTTP only from cron, never triggers.
+ await c.query("create type extensions.http_header as (field varchar,value varchar);create function extensions.http_header(varchar,varchar) returns extensions.http_header language sql as $$select row($1,$2)::extensions.http_header$$;create type extensions.http_request as (method varchar,uri varchar,headers extensions.http_header[],content_type varchar,content varchar);create type extensions.http_response as (status integer,content_type varchar,headers extensions.http_header[],content varchar);create table public.fixture_http_calls(request extensions.http_request);create function extensions.http_set_curlopt(varchar,varchar) returns boolean language sql as $$select true$$;create function extensions.http_reset_curlopt() returns boolean language sql as $$select true$$;create function extensions.http(extensions.http_request) returns extensions.http_response language plpgsql as $$begin insert into fixture_http_calls values($1);return row(200,'application/json',array[]::extensions.http_header[],'{}')::extensions.http_response;end$$;");
+ await c.query(read('supabase/migrations/20261021173122_organizer_alert_queue_privacy.sql').replace(/^create extension.*$/gm,''));
+ const privatePoll=await emit();assert.equal((await c.query('select count(*)::int n from fixture_http_calls')).rows[0].n,0,'ballot trigger never sends HTTP');
+ assert.equal((await c.query('select gw_dispatch_organizer_push() status')).rows[0].status,'200');
+ assert.equal((await c.query('select count(*)::int n from fixture_http_calls')).rows[0].n,1);
+ assert.match((await c.query("select pg_get_functiondef('gw_dispatch_organizer_push()'::regprocedure) source")).rows[0].source,/pg_trigger_depth\(\)>0/);
+ assert.doesNotMatch((await c.query("select pg_get_functiondef('gw_dispatch_organizer_push()'::regprocedure) source")).rows[0].source,/net\.http_post/);
+ await c.query("create or replace function extensions.http(extensions.http_request) returns extensions.http_response language plpgsql as $$begin raise exception 'synthetic direct HTTP outage';end$$;");
+ await assert.rejects(c.query('select gw_dispatch_organizer_push()'),/synthetic direct HTTP outage/);
+ const directOutage=await emit();assert.equal((await c.query('select count(*)::int n from gw_ballots where poll_id=$1',[directOutage])).rows[0].n,2);
+ await c.query('set role anon');await assert.rejects(c.query('select gw_dispatch_organizer_push()'),/permission denied/);await c.query('reset role');
  console.log('PASS: private push config, explicit organizer subscriptions, endpoint/key validation, no backfill, per-device/event dedup, grants/RLS, leases/retry/expiry/disable and concurrent disjoint claims. Scheduler SQL rehearsed using local extension stand-ins; no push sent.');
 };
