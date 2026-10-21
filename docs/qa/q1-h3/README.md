@@ -8,7 +8,7 @@ Synthetic data only. Baseline is main `bb15b00`; after images show this PR. Same
 | Swipe | ![Before swipe](before/swipe-390.png) | ![After swipe](after/swipe-390.png) |
 | Ranked | ![Before ranked](before/ranked-390.png) | ![After ranked](after/ranked-390.png) |
 
-Two identically named places now have distinct saved addresses. Missing locations say “Location not saved.” Native ranking options contain the address, selected details update in place, and a keyboard-accessible disclosure lists every place's cuisine and location. The native select nodes remain mounted during selection and duplicate-choice clearing.
+Two identically named places now have distinct saved addresses. Missing locations say “Location not saved.” Native ranking options show names only; selected cuisine/address details update in place below the control, and a keyboard-accessible disclosure lists every place's cuisine and location. The native select nodes remain mounted during selection and duplicate-choice clearing.
 
 | Additional state | Screenshot |
 |---|---|

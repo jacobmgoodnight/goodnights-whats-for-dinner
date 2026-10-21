@@ -58,6 +58,8 @@ for(const method of ['approval','swipe','ranked'])test(method+' ballot identifie
  assert.match(h.app.innerHTML,/Location not saved/);
  assert.equal(h.calls.filter(c=>c.fn==='gw_vote_as_member').length,0);
  if(method==='ranked'){
+  const choices=[...h.app.innerHTML.matchAll(/<option value="([abc])"[^>]*>(.*?)<\/option>/g)];assert.equal(choices.length,9);
+  for(const [,id,label] of choices)assert.equal(label,'Place '+id);
   h.nodes.rank0={value:'a'};h.nodes.rankDetails0={innerHTML:''};
   const original=h.nodes.rank0;h.listeners.change({target:{...original,id:'rank0',dataset:{rank:'0'}}});
   assert.equal(h.nodes.rank0,original);assert.match(h.nodes.rankDetails0.innerHTML,/Pizza.*Fixture a Street/);
