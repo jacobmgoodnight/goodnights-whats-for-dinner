@@ -240,7 +240,7 @@ H2 needs no migration: the existing organizer `gw_get_poll_people` reader suppli
 
 ## Readable ballots and swipe feedback
 
-Approval and consensus ballots show each restaurant's saved cuisine and address; missing addresses say **Location not saved**. Ranked-choice menus include addresses to distinguish locations, show the selected place's details beside each native control, and offer **See all places and locations**. This uses saved information without a new lookup or provider.
+Approval and consensus ballots show each restaurant's saved cuisine and address; missing addresses say **Location not saved**. Ranked-choice menus show restaurant names only, show the selected place's cuisine/address below each native control, and offer **See all places and locations**. This uses saved information without a new lookup or provider.
 
 The existing Goodnights brand, button and text colors are preserved. Swipe cards give small left/right feedback with explicit **Not tonight / Sounds good** text. Vertical scrolling, yes/no buttons, answer progress, backtracking and explicit submission remain available. Returning to an answered card shows the saved yes/no answer. Reduced-motion users get the directional text without movement. Ranking details update without replacing or refocusing the iOS native select.
 

@@ -77,7 +77,7 @@ async function fixture(browser,method,{width=390,height=844,reducedMotion='no-pr
     assert.equal(await h.page.evaluate(()=>document.activeElement.id),'rank0');
     assert.match(await h.page.locator('#rankDetails0').innerText(),/14 Oak Street/);
     assert.match(await h.page.locator('#rankDetails2').innerText(),/Location not saved/);
-    assert.match(await h.page.locator('#rank0 option[value="b"]').innerText(),/220 River Road/);
+    assert.deepEqual(await h.page.locator('#rank0 option').allTextContents(),['Choose restaurant…',...options.map(r=>r.name)]);
     await h.page.locator('#rank0').selectOption('b');assert.equal(await h.page.locator('#rank1').inputValue(),'');
     await h.page.locator('#rank0').selectOption('a');await h.page.locator('#rank1').selectOption('b');
     await h.page.locator('#rank0').focus();await h.page.keyboard.press('Tab');
