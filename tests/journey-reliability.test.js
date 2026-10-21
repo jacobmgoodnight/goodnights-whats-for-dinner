@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const tick=()=>new Promise(r=>setImmediate(r));
 async function harness({owner=false,method='approval',saved=false}={}){
  const listeners={},store={},copies=[],calls=[],nodes={};let forcedCount=null,closed=false,ballot=saved?(method==='swipe'?{a:true,b:false,c:true}:['a','b','c'].slice(0,method==='approval'?1:3)):null;let createHook=null,submitHook=null;
- const options=['a','b','c'].map(id=>({id,name:'Place '+id,category:'Pizza'}));
+ const options=['a','b','c'].map(id=>({id,name:'Place '+id,category:'Pizza',address:id==='c'?'':'Fixture '+id+' Street, Town'}));
  const app={innerHTML:'',addEventListener:(n,f)=>listeners[n]=f};const dom={app,modeBadge:{},toast:{classList:{add(){},remove(){}}},brand:{addEventListener:(n,f)=>listeners.brand=f}};
  const currentPoll=()=>({id:'poll-1',meal:'Dinner',method,status:closed?'closed':'open',options,voted_count:forcedCount??(ballot?1:0),expected_voters:3,ballots:closed&&ballot?[ballot]:null,created_at:'2026-10-17T12:00:00Z'});
  const family=()=>({name:'Fixture family',restaurants:options,polls:[currentPoll()]});
@@ -51,3 +51,15 @@ test('home invitations are personal; organizer backup is explicitly labeled in M
 });
 
 test('automatically finished polls appear under results even if the stored status remains open',async()=>{const h=await harness({saved:true});h.completeByCount();await h.click('goHome');assert.match(h.app.innerHTML,/Nothing to vote on right now/);assert.match(h.app.innerHTML,/See results/);assert.doesNotMatch(h.app.innerHTML,/Open vote →/)});
+
+for(const method of ['approval','swipe','ranked'])test(method+' ballot identifies the saved location and missing-location fallback',async()=>{
+ const h=await harness({method});assert.match(h.app.innerHTML,/Fixture a Street, Town/);
+ if(method==='swipe'){await h.click('swipeYes');await h.click('swipeNo')}
+ assert.match(h.app.innerHTML,/Location not saved/);
+ assert.equal(h.calls.filter(c=>c.fn==='gw_vote_as_member').length,0);
+ if(method==='ranked'){
+  h.nodes.rank0={value:'a'};h.nodes.rankDetails0={innerHTML:''};
+  const original=h.nodes.rank0;h.listeners.change({target:{...original,id:'rank0',dataset:{rank:'0'}}});
+  assert.equal(h.nodes.rank0,original);assert.match(h.nodes.rankDetails0.innerHTML,/Pizza.*Fixture a Street/);
+ }
+});

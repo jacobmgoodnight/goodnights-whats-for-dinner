@@ -1,6 +1,6 @@
 # H4: location-aware restaurant saving
 
-Status: implemented for review; production migration **not applied**.
+Status: approved migration **applied** as `20261021025454_location_aware_restaurant_saving`. See the [combined release record](release-20261021.md) for backup, deployed-schema rehearsal, unchanged-data verification and release checks. The implementation-time notes below document the original proposal. Do not reapply the migration.
 
 Manual, pasted Maps and OSM additions now open a name/address review before saving. Suggestions beside the name fields use only already-loaded active saved restaurants. Typing never invokes Nominatim, Overpass, Google or a new RPC. Online discovery still requires its existing search button.
 

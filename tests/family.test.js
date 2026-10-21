@@ -49,3 +49,12 @@ test('random results disclose the draw in shares and suppress consensus highligh
  assert.match(message,/🏆 Tacos/);assert.match(message,/Chosen randomly between 2 tied leaders/);assert.match(message,/4 approvals/);
  assert.doesNotMatch(message,/table full of yeses/);
 });
+
+test('no-choice shares stay calm while historical draws disclose zero support',()=>{
+ const p={meal:'Dinner',method:'swipe',options,ballots:Array(3).fill({a:false,b:false}),voted_count:3};
+ const result=Voting.tally(p),text=F.result(p,result,'https://example.test/?poll=fixture');
+ assert.match(text,/Nothing sounds good tonight/);assert.match(text,/0% yes/);assert.deepEqual(F.highlights(p,result),[]);
+ assert.doesNotMatch(text,/🏆|⭐|is decided|tiebreaker|settle the tie|See you at the table/);
+ const old={...p,tie_winner_id:'a'},historical=F.result(old,Voting.tally(old),'https://example.test/?poll=fixture');
+ assert.match(historical,/Chosen randomly/);assert.match(historical,/Historical saved draw/);assert.deepEqual(F.highlights(old,Voting.tally(old)),[]);
+});

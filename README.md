@@ -69,7 +69,7 @@ Open https://chatgpt.com/codex and select \`jacobmgoodnight/goodnights-whats-for
 ## How voting works
 
 - **Approval:** One or two approvals per person. The restaurant with the most approval votes wins.
-- **Consensus:** Every person responds yes/no to every option. With everyone voting on the same options, the most yes votes also gives the highest approval percentage.
+- **Consensus:** Every person responds yes/no to every option. The most yes votes wins, with the actual support count shown. If every place gets zero yes votes, results say **Nothing sounds good tonight** and the organizer can start a new shortlist. Positive ties retain runoff and random-pick options.
 - **Ranked:** Each person ranks up to three choices. The app counts first choices and eliminates equally lowest-scoring candidates together per round, transferring preferences when possible. For an unresolved tie, the organizer can start a runoff or pick once at random between the tied leaders.
 - **Tie:** If multiple candidates remain tied, the family organizer can launch a new ranked-choice poll between those candidates.
 
@@ -205,10 +205,55 @@ On tied results, organizers can choose **🎲 Pick a tied winner** or **Start a 
 
 Ballot actions now occupy their own space at the bottom of the ballot and stay visible while scrolling, without a blank spacer below the name-switch button. Background refresh pauses while the page is hidden and skips overlapping requests; unresolved ties keep refreshing so a saved organizer pick arrives on open family results pages.
 
+## H1: honest consensus outcomes
+
+All-no consensus results have no winners, trophies, random draw, runoff, or results celebration. Results messages and images use the same outcome. **Start a new shortlist** opens the organizer's existing Places setup with no restaurants selected; review people, method and settings before creating a fresh poll. The original poll, ballots and links remain available. Positive plurality winners show “Most yes votes” and their support numerator/denominator. Existing saved random draws remain visible and disclose both the random selection and any historical zero support.
+
+The additive migration is [20261020182044_honest_consensus_outcomes.sql](supabase/migrations/20261020182044_honest_consensus_outcomes.sql). It replaces only `gw_resolve_tie_random`, retaining organizer checks, the poll row lock, immutable saved-pick return, ranked elimination, and narrow execution grants. New all-no consensus draws fail on the server even from an older browser. Approval and ranked-choice rules stay unchanged. No migration has been applied to the live database for H1.
+
+Proposed deployment order, after separate approval:
+
+1. Verify the target already has `sql/random_tiebreaker.sql` and the intervening applied upgrades; take the private backup required for production changes. The historical `database.sql` is not a production upgrade script.
+2. Rehearse the migration and fixtures in an isolated database. Review actual deployed function definitions/grants against the repository. Apply only the new migration to production in a transaction, then verify its function/grants. Do not rerun the old migration or baseline.
+3. Deploy the matching static JavaScript through the normal reviewed main/Pages release. Applying the guard first protects calls from cached older clients. Validate public/member/organizer results, positive ties/runoffs, all-no recovery and historical saved draws on synthetic staging polls before release.
+4. Retain the guard if the UI must roll back. Restoring the old server function would reopen zero-support random draws. No data rollback is needed because this migration rewrites no rows.
+
+Verification: `node --test tests/*.test.js` covers tally, shares, organizer/member UI, image canvas text, celebrations, demo direct calls, and existing behavior. An optional isolated PostgreSQL check uses PGlite, installed outside this no-build repository:
+
+```powershell
+npm install --prefix "$env:TEMP/gw-h1-test-runtime" --no-save --package-lock=false @electric-sql/pglite@0.5.10
+$env:GW_PGLITE_MODULE="$env:TEMP/gw-h1-test-runtime/node_modules/@electric-sql/pglite"
+node tests/sql/run-honest-consensus.cjs
+```
+
+The runner creates only an in-memory database, loads the baseline and original draw function (omitting its unrelated reader patch), tests a saved pre-upgrade draw and rejects a fresh all-no call as `anon`, then runs [rollback-only SQL fixtures](tests/sql/honest_consensus.rollback.sql). It covers early closure, all three methods, authorization guards, unchanged ballots/family credentials, runoffs, ranked transfers and grants. It does not reconstruct the complete deployed Supabase/member schema. Live database state/advisors, full PostgREST integration, genuine concurrent multi-connection locking, rendered image layout, physical iPhone/Android and real multi-phone flows still need staging/release verification. VM image tests inspect canvas drawing text, not pixels.
+
+## Repeat a dinner into a draft
+
+Organizers can choose **Use this dinner again** from a finished poll in History or its results. This opens **Review** in the existing wizard with the previous places, eligible invited people, meal, voting method and explicitly saved cuisine. Use **Edit places**, **Edit people**, **Change voting method**, or **Edit meal or cuisine** to adjust it. Voting experience starts with the current new-vote defaults and remains editable on Review.
+
+The draft refreshes current restaurants and membership. Hidden/unavailable places and inactive people are omitted, with names and reasons shown. Older polls without a saved roster start with no people selected; the organizer must choose the current guests. A poll without explicit cuisine stays **All cuisines**. At confirmation, availability is checked again; if selections have become unavailable, the draft explains the changes and asks for another review instead of creating immediately. Read or creation failures keep the draft available for retry; **Cancel draft** returns to History without changing the original.
+
+Only **Create lunch/dinner vote** creates a fresh poll through the existing RPCs. The source poll ID, ballots, invitation credentials, closed status and saved random result are never copied into the draft or creation request. Existing data and links stay intact. Repeat loading and creation use the existing pending-action guard against overlapping taps within this browser session; cross-tab/server request idempotency is unchanged.
+
+H2 needs no migration: the existing organizer `gw_get_poll_people` reader supplies roster membership, including inactive entries, and current family/member readers validate eligibility. The new poll uses the existing configured/themed creation RPCs. No live database changes are part of H2. Run `node --test tests/*.test.js`; focused repeat-dinner fixtures cover all methods, legacy rosters, omissions, edits, limits, cancellation, fresh creation payloads, availability races, read/create retries and duplicate taps. These are synthetic RPC fixtures, not live Supabase or physical-device verification.
+
+## Readable ballots and swipe feedback
+
+Approval and consensus ballots show each restaurant's saved cuisine and address; missing addresses say **Location not saved**. Ranked-choice menus include addresses to distinguish locations, show the selected place's details beside each native control, and offer **See all places and locations**. This uses saved information without a new lookup or provider.
+
+The existing Goodnights brand, button and text colors are preserved. Swipe cards give small left/right feedback with explicit **Not tonight / Sounds good** text. Vertical scrolling, yes/no buttons, answer progress, backtracking and explicit submission remain available. Returning to an answered card shows the saved yes/no answer. Reduced-motion users get the directional text without movement. Ranking details update without replacing or refocusing the iOS native select.
+
+No voting rules, backend, data or credentials change. [Before/after screenshots and QA evidence](docs/qa/q1-h3/README.md) document synthetic mobile/keyboard/gesture/failed-save checks and physical-device limitations. Run the normal Node suite with `node --test tests/*.test.js`; the optional real-browser runner is documented there.
+
 ## Location-aware restaurant saving (H4)
 
 Manual, pasted Maps and OSM additions now review the incoming name/address against saved locations. Exact OSM identity takes priority; manual identity uses name **and a non-empty address**. Same-name branches can stay separate. Uncertain or missing-address matches offer saved-place choices and an explicit separate-location action. Hidden matches discovered by the server are shown before a separate save proceeds. Reusing/restoring a saved row preserves its metadata, ID and voting history.
 
 Name fields also offer suggestions from the already-loaded saved list. Typing does not search an online service. Online OSM/Maps actions remain explicit, and failed searches retain manual details. Address edits require confirmation and clear stale source/coordinate data; use a separate entry for another branch.
 
-The additive migration is **prepared and unapplied**. [H4 implementation, private audit, deployment order and test instructions](docs/location-aware-saving.md) describe the new save RPC, guarded legacy signature, uniqueness/concurrency rules and verification limits. Do not rerun the baseline or apply this migration to production without separate deployment approval.
+The approved additive migration is **applied**; see the [release record](docs/release-20261021.md). [H4 implementation, private audit, deployment order and test instructions](docs/location-aware-saving.md) describe the new save RPC, guarded legacy signature, uniqueness/concurrency rules and verification limits. Do not rerun the baseline or reapply migrations.
+
+## Approved release
+
+[October 20–21 release record](docs/release-20261021.md): H1, H2, H4 and Q1/H3 with the original brand/button/text colors. H5 meal history/rotation is deferred. The record covers private backup verification, applied migrations, combined tests, release order and physical-device limitations.
