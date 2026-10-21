@@ -237,3 +237,12 @@ The draft refreshes current restaurants and membership. Hidden/unavailable place
 Only **Create lunch/dinner vote** creates a fresh poll through the existing RPCs. The source poll ID, ballots, invitation credentials, closed status and saved random result are never copied into the draft or creation request. Existing data and links stay intact. Repeat loading and creation use the existing pending-action guard against overlapping taps within this browser session; cross-tab/server request idempotency is unchanged.
 
 H2 needs no migration: the existing organizer `gw_get_poll_people` reader supplies roster membership, including inactive entries, and current family/member readers validate eligibility. The new poll uses the existing configured/themed creation RPCs. No live database changes are part of H2. Run `node --test tests/*.test.js`; focused repeat-dinner fixtures cover all methods, legacy rosters, omissions, edits, limits, cancellation, fresh creation payloads, availability races, read/create retries and duplicate taps. These are synthetic RPC fixtures, not live Supabase or physical-device verification.
+
+## Readable ballots and swipe feedback
+
+Approval and consensus ballots show each restaurant's saved cuisine and address; missing addresses say **Location not saved**. Ranked-choice menus include addresses to distinguish locations, show the selected place's details beside each native control, and offer **See all places and locations**. This uses saved information without a new lookup or provider.
+
+The existing Goodnights brand, button and text colors are preserved. Swipe cards give small left/right feedback with explicit **Not tonight / Sounds good** text. Vertical scrolling, yes/no buttons, answer progress, backtracking and explicit submission remain available. Returning to an answered card shows the saved yes/no answer. Reduced-motion users get the directional text without movement. Ranking details update without replacing or refocusing the iOS native select.
+
+No voting rules, backend, data or credentials change. [Before/after screenshots and QA evidence](docs/qa/q1-h3/README.md) document synthetic mobile/keyboard/gesture/failed-save checks and physical-device limitations. Run the normal Node suite with `node --test tests/*.test.js`; the optional real-browser runner is documented there.
+

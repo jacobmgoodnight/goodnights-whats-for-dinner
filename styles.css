@@ -88,3 +88,20 @@ main{padding:22px 20px 30px}h1{font-size:clamp(33px,7vw,52px);line-height:1.05;l
 @media(min-width:700px){.ballot-actions{width:calc(100% + 70px);margin:16px -35px 0;padding-left:35px;padding-right:35px}}
 
 @media(max-width:385px){.ballot-actions{width:calc(100% + 24px);margin:16px -12px 0;padding-left:12px;padding-right:12px}}
+
+/* Readable ballot details and restrained directional feedback. */
+.topbar{flex-wrap:wrap}.topbar .logo{min-width:0;max-width:100%}.logo>span:last-child{min-width:0;overflow-wrap:anywhere}.topbar .pill{max-width:100%;white-space:normal}
+.field input:focus-visible,.field select:focus-visible,.rankoption select:focus-visible,#swipeCard:focus-visible{outline:3px solid #ef9156;outline-offset:3px}
+.method:focus-within{outline:3px solid var(--orange);outline-offset:2px}
+.item-detail,.rank-details{font-size:13px;line-height:1.5}
+.ballot-places summary{cursor:pointer;min-height:44px;align-content:center;font-size:14px;font-weight:750}
+.rank-details{margin:8px 0 0;overflow-wrap:anywhere}
+.votecard{position:relative;padding:18px 14px 24px;transform:translateX(var(--swipe-x,0px)) rotate(var(--swipe-tilt,0deg));transition:transform .14s ease-out}
+.votecard h2,.votecard .restaurant-facts{overflow-wrap:anywhere}
+.votecard .restaurant-facts{color:var(--muted);font-size:14px;line-height:1.5}
+.swipe-direction{justify-self:center;min-height:28px;padding:4px 10px;border-radius:8px;font-size:13px;font-weight:850;color:var(--ink)}
+.votecard .swipe-answer{font-size:13px;font-weight:750;color:var(--ink)}
+#swipeInstructions{text-align:center;margin:12px 0 0}
+.vote-btns{margin-top:12px}.vote-btns .btn{min-width:0;padding:13px 10px}
+.ballot-flow .between{flex-wrap:wrap}.ballot-summary{flex-wrap:wrap}.ballot-summary span{text-align:left}
+@media(prefers-reduced-motion:reduce){.votecard{transform:none!important;transition:none!important}}

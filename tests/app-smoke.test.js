@@ -68,6 +68,14 @@ async function click(act,data={}){
  assert.match(html.innerHTML,/0 of 3 answered/);
  start();listeners.touchcancel();listeners.touchend({target,changedTouches:[touch(100,0)]});
  assert.match(html.innerHTML,/0 of 3 answered/);
+ // A gesture that begins as scrolling stays a scroll, even if its end drifts sideways.
+ start();listeners.touchmove({target,touches:[touch(4,35)]});listeners.touchend({target,changedTouches:[touch(140,40)]});
+ assert.match(html.innerHTML,/0 of 3 answered/);
+ // Adding a second finger cancels the gesture instead of answering on lift.
+ start();listeners.touchmove({target,touches:[touch(30,0),{identifier:2,screenX:20,screenY:20}]});listeners.touchend({target,changedTouches:[touch(100,0)]});
+ assert.match(html.innerHTML,/0 of 3 answered/);
+ start();listeners.touchend({target,changedTouches:[{identifier:9,screenX:100,screenY:0}]});
+ assert.match(html.innerHTML,/0 of 3 answered/);
  start();listeners.touchend({target,changedTouches:[touch(100,10)]});
  assert.match(html.innerHTML,/1 of 3 answered/);
  await click('swipeNo');

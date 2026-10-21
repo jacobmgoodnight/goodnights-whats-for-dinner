@@ -196,9 +196,11 @@ function readAppearance(prefix){
  else value='';
  return {icon_mode:mode,icon_value:value};
 }
+function restaurantLocation(r){return r.address?.trim()||'Location not saved'}
+function restaurantFacts(r){return [r.category,restaurantLocation(r)].filter(Boolean).join(' · ')}
 function restaurantRow(r,{select=false,remove=false}={}){
  return `<${select?'label':'div'} class="item">${select?`<input class="check" type="checkbox" aria-label="Select ${esc(r.name)}" data-select="${esc(r.id)}" ${state.selected.has(r.id)?'checked':''}>`:''}
- <div class="foodicon">${icon(r.category,r.name,r)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc([r.category,r.address].filter(Boolean).join(' · ')||'Family favorite')}${select&&state.pollCenter?` · ${r.distance===null?'Distance unavailable':r.distance.toFixed(1)+' mi'}`:''}</div></div>
+ <div class="foodicon">${icon(r.category,r.name,r)}</div><div class="item-body"><div class="item-title">${esc(r.name)}</div><div class="item-detail">${esc(restaurantFacts(r))}${select&&state.pollCenter?` · ${r.distance===null?'Distance unavailable':r.distance.toFixed(1)+' mi'}`:''}</div></div>
  ${remove?`<div class="restaurant-actions"><button class="btn btn-quiet btn-sm" data-act="editRestaurant" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.name)}">Edit</button><button class="btn btn-line btn-sm" data-act="archive" data-id="${esc(r.id)}" aria-label="Hide ${esc(r.name)}">Hide</button></div>`:''}</${select?'label':'div'}>`
 }
 function normalizeFamily(data){if(data?.polls)data.polls=data.polls.map(p=>({...p,status:p.status==='closed'||p.expected_voters>0&&p.voted_count>=p.expected_voters?'closed':'open'}));return data}
@@ -380,7 +382,7 @@ function renderHistory(){
 function previewBanner(){return `<section class="card preview-banner"><div class="eyebrow">🧪 PRACTICE VOTE · NOTHING SAVED</div><h2>Try ${methodName(poll?.method)}</h2><div class="btn-row">${['approval','swipe','ranked'].map(m=>`<button class="btn btn-quiet btn-sm" data-act="previewMode" data-method="${m}">${methodName(m)}</button>`).join('')}</div><button class="btn btn-line btn-full" style="margin-top:12px" data-act="exitPreview">← Back to new vote</button></section>`}
 function startPreview(method){
  if(!familyToken||!['approval','swipe','ranked'].includes(method))return;
- clearInterval(pollTimer);state.preview=true;state.page='poll';state.approvals=new Set();state.swipes={};state.swipeIndex=0;state.rank=[];
+ clearInterval(pollTimer);state.preview=true;state.page='poll';state.approvals=new Set();state.swipeAnnouncement='';state.swipes={};state.swipeIndex=0;state.rank=[];
  const options=[{id:'practice-pizza',name:'Pizza night',category:'Pizza',icon_mode:'builtin',icon_value:'pizza'},{id:'practice-burger',name:'Burger stop',category:'Burgers',icon_mode:'builtin',icon_value:'burger'},{id:'practice-taco',name:'Taco time',category:'Mexican',icon_mode:'builtin',icon_value:'taco'}];
  poll={id:'preview',meal:'Dinner',method,options,status:'open',voted_count:0,expected_voters:1};render();window.scrollTo({top:0});
 }
@@ -419,6 +421,7 @@ async function loadPeople(target,includeAvatars=true){
  try{const data=inGroup(target.id)?await groupRpc('people',{p_include_avatars:includeAvatars}):await rpc('gw_get_poll_people',{p_poll_id:target.id,p_token:familyToken||null,p_member_token:memberToken||null,p_include_avatars:includeAvatars});const previous=peopleCache.get(target.id)||[];target.people=(data.people||[]).map(p=>({...p,avatar:p.avatar||previous.find(old=>old.id===p.id)?.avatar||'🙂'}));peopleCache.set(target.id,target.people);target.group_family_id=data.family_id||target.group_family_id;target.roster_enabled=!!data.rostered;target.can_vote=!!data.eligible&&!target.voter_error;target.people_error=!!target.voter_error}catch{target.people_error=true}
 }
 function mapsForRestaurant(r){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([r.name,r.address].filter(Boolean).join(', '))}
+function rankDetails(i){const r=poll.options.find(r=>r.id===state.rank[i]);return r?esc(restaurantFacts(r)):'Choose a place to see its cuisine and location.'}
 function rankLogo(i){const r=poll.options.find(r=>r.id===state.rank[i]);return r?icon(r.category,r.name,r):'<span class="rank-placeholder">🍽️</span>'}
 function rankReady(){const count=Math.min(3,poll.options.length),r=state.rank.slice(0,count);return r.filter(Boolean).length===count&&new Set(r).size===count}
 function groupPicker(){
@@ -443,7 +446,7 @@ function restoreRestaurantDrafts(){
  for(const key of ['google','manual','edit:'+state.editingId])for(const [id,value] of Object.entries(state.restaurantDrafts[key]||{})){const input=$(id);if(input)input.value=value}
 }
 function renderKeepingFocus(target){
- const id=target.id,name=target.name,inputValue=target.value,keys=['select','approval','rank','person'],key=keys.find(k=>target.dataset[k]!==undefined),value=key?target.dataset[key]:null,top=window.scrollY;
+ const id=target.id,name=target.name,inputValue=target.value,keys=['select','approval','rank','person','act'],key=keys.find(k=>target.dataset[k]!==undefined),value=key?target.dataset[key]:null,top=window.scrollY;
  render();const replacement=id?$(id):key?Array.from(app.querySelectorAll?.('[data-'+key+']')||[]).find(n=>n.dataset[key]===value):name?Array.from(app.querySelectorAll?.('[name]')||[]).find(n=>n.name===name&&n.value===inputValue):null;
  replacement?.focus?.({preventScroll:true});if(Number.isFinite(top))window.scrollTo({top,behavior:'instant'});
 }
@@ -464,18 +467,18 @@ function renderPoll(){
  else if(poll.method==='approval'){
  voting=`<div class="card"><h2>Pick up to 2</h2><p class="subtle">Which restaurants would you be happy eating?</p>${poll.options.map(r=>restaurantRow(r)).join('')}</div>`;
  // Re-render approval rows with their own input, without changing family-list state.
- voting=`<div class="card"><h2>Pick up to 2</h2><p class="subtle">Which restaurants would you be happy eating?</p>${poll.options.map(r=>`<label class="item"><input class="check" type="checkbox" data-approval="${esc(r.id)}" ${state.approvals.has(r.id)?'checked':''}><span class="foodicon">${icon(r.category,r.name,r)}</span><span class="item-body"><span class="item-title">${esc(r.name)}</span><span class="item-detail">${esc(r.category)}</span></span></label>`).join('')}</div>`;
+ voting=`<div class="card"><h2>Pick up to 2</h2><p class="subtle">Which restaurants would you be happy eating?</p>${poll.options.map(r=>`<label class="item"><input class="check" type="checkbox" data-approval="${esc(r.id)}" ${state.approvals.has(r.id)?'checked':''}><span class="foodicon">${icon(r.category,r.name,r)}</span><span class="item-body"><span class="item-title">${esc(r.name)}</span><span class="item-detail">${esc(restaurantFacts(r))}</span></span></label>`).join('')}</div>`;
  }else if(poll.method==='swipe'){
  const i=Math.min(state.swipeIndex,poll.options.length-1),r=poll.options[i];
  voting=`<div class="card"><div class="between"><strong>Swipe / consensus</strong><span class="subtle">${Object.keys(state.swipes).length} of ${poll.options.length} answered</span></div><div class="progress"><span style="width:${(Object.keys(state.swipes).length/poll.options.length)*100}%"></span></div>
- <div class="votecard" id="swipeCard"><div class="foodicon">${icon(r.category,r.name,r)}</div><h2>${esc(r.name)}</h2><p>${esc(r.category)} · Swipe left or right, or use the buttons.</p></div>
+ <div class="votecard" id="swipeCard" tabindex="-1" aria-describedby="swipeInstructions"><span class="swipe-direction" aria-hidden="true"></span><div class="foodicon">${icon(r.category,r.name,r)}</div><h2>${esc(r.name)}</h2><p class="restaurant-facts">${esc(restaurantFacts(r))}</p>${typeof state.swipes[r.id]==='boolean'?`<p class="swipe-answer">Your answer: ${state.swipes[r.id]?'👍 Sounds good':'👎 Not tonight'}</p>`:''}</div><p class="note" id="swipeInstructions">← Not tonight · Sounds good →<br>Swipe or use the buttons below.</p>
  <div class="vote-btns"><button class="btn btn-line" data-act="swipeNo">👎 Not tonight</button><button class="btn btn-primary" data-act="swipeYes">👍 Sounds good</button></div>
- <p class="subtle" role="status">${Object.keys(state.swipes).length===poll.options.length?"All restaurants answered. Submit your vote below.":"Answer each restaurant, then submit your vote."}</p>
+ <p class="subtle" role="status">${state.swipeAnnouncement?esc(state.swipeAnnouncement)+' ':''}${Object.keys(state.swipes).length===poll.options.length?"All restaurants answered. Submit your vote below.":"Answer each restaurant, then submit your vote."}</p>
  ${i>0?`<button style="margin-top:10px" class="btn btn-quiet btn-sm" data-act="swipeBack">← Go back</button>`:''}</div>`;
  }else{
  const count=Math.min(3,poll.options.length);
  voting=`<div class="card"><h2>Rank your top ${count}</h2><p class="subtle">Choose a different restaurant for each position.</p>
- ${Array.from({length:count},(_,i)=>`<div class="rankoption"><label for="rank${i}">${['🥇 First choice','🥈 Second choice','🥉 Third choice'][i]}</label><div class="rank-control"><span class="rank-logo" id="rankLogo${i}" aria-hidden="true">${rankLogo(i)}</span><select id="rank${i}" data-rank="${i}"><option value="">Choose restaurant…</option>${poll.options.map(r=>`<option value="${esc(r.id)}" ${state.rank[i]===r.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select></div></div>`).join('')}</div>`;
+ ${Array.from({length:count},(_,i)=>`<div class="rankoption"><label for="rank${i}">${['🥇 First choice','🥈 Second choice','🥉 Third choice'][i]}</label><div class="rank-control"><span class="rank-logo" id="rankLogo${i}" aria-hidden="true">${rankLogo(i)}</span><select id="rank${i}" data-rank="${i}" aria-describedby="rankDetails${i}"><option value="">Choose restaurant…</option>${poll.options.map(r=>`<option value="${esc(r.id)}" ${state.rank[i]===r.id?'selected':''}>${esc(r.name+' — '+restaurantLocation(r))}</option>`).join('')}</select></div><p class="note rank-details" id="rankDetails${i}">${rankDetails(i)}</p></div>`).join('')}<details class="ballot-places"><summary>See all ${poll.options.length} places and locations</summary>${poll.options.map(r=>restaurantRow(r)).join('')}</details></div>`;
  }
  const ballotReady=poll.method==='approval'?state.approvals.size>=1&&state.approvals.size<=2:poll.method==='swipe'?Object.keys(state.swipes).length===poll.options.length:state.rank.slice(0,Math.min(3,poll.options.length)).filter(Boolean).length===Math.min(3,poll.options.length)&&new Set(state.rank).size===Math.min(3,poll.options.length);
  const pending=poll.method==='swipe'&&Object.keys(state.swipes).length!==poll.options.length;
@@ -560,7 +563,7 @@ function pollNeedsRefresh(value){return value.status==='open'||window.Goodnights
 let pollSession=0;
 async function openPoll(id){
  const session=++pollSession;clearInterval(pollTimer);state.editingVote=false;state.includeCardAvatars=false;state.refreshError=false;state.deferredPollRender=false;
- clearResultsCard();state.preview=false;state.approvals=new Set();state.swipes={};state.swipeIndex=0;state.rank=[];poll=null;state.page='poll';history.replaceState(null,'',pollUrl(id));window.scrollTo({top:0});render();
+ clearResultsCard();state.preview=false;state.approvals=new Set();state.swipeAnnouncement='';state.swipes={};state.swipeIndex=0;state.rank=[];poll=null;state.page='poll';history.replaceState(null,'',pollUrl(id));window.scrollTo({top:0});render();
  await safe(async()=>{
   await loadPoll(id);if(session!==pollSession)return;
   if(inGroup(id)&&member&&(poll.people||[]).some(m=>m.id===member.id&&m.active!==false))rememberGroupPerson();else await restoreGroupPerson();
@@ -588,7 +591,17 @@ async function makePoll(ids,method=state.method,expected=state.expected,particip
  const id=chosen.length?await rpc(state.pollCuisine?'gw_create_poll_themed':state.groupJoin||!state.allowMemberHome?'gw_create_poll_configured':'gw_create_poll_for_members',{p_token:familyToken,p_meal:state.meal,p_method:method,p_restaurant_ids:ids,p_member_ids:chosen,...(state.pollCuisine||state.groupJoin||!state.allowMemberHome?{p_allow_member_home:state.allowMemberHome,p_group_join:state.groupJoin}:{}),...(state.pollCuisine?{p_cuisine:state.pollCuisine}:{})}):await rpc('gw_create_poll',{p_token:familyToken,p_meal:state.meal,p_method:method,p_expected_voters:expected,p_restaurant_ids:ids});
  state.repeatDraft=null;await loadFamily();await openPoll(id);toast('Vote created! Share the voting link.');
 }
-function voteSwipe(value){if(!poll)return;const r=poll.options[state.swipeIndex];if(!r)return;state.swipes[r.id]=value;state.swipeIndex=Math.min(poll.options.length-1,state.swipeIndex+1);render()}
+function voteSwipe(value){
+ if(!poll||poll.method!=='swipe'||poll.status!=='open'||state.page!=='poll'||state.pendingAction)return;
+ const r=poll.options[state.swipeIndex];if(!r)return;
+ swipeTouch=null;state.swipes[r.id]=value;state.swipeAnnouncement=(value?'Sounds good: ':'Not tonight: ')+r.name+'.';
+ state.swipeIndex=Math.min(poll.options.length-1,state.swipeIndex+1);
+ const focused=document.activeElement;
+ if(focused?.dataset?.act==='swipeYes'||focused?.dataset?.act==='swipeNo')renderKeepingFocus(focused);else render();
+}
+function clearSwipeFeedback(){const card=$('swipeCard');if(!card)return;card.style.removeProperty('--swipe-x');card.style.removeProperty('--swipe-tilt');delete card.dataset.direction;const label=card.querySelector('.swipe-direction');if(label)label.textContent=''}
+function showSwipeFeedback(dx){const card=$('swipeCard');if(!card)return;card.dataset.direction=dx>0?'yes':'no';card.style.setProperty('--swipe-x',Math.max(-18,Math.min(18,dx/5))+'px');card.style.setProperty('--swipe-tilt',Math.max(-1.5,Math.min(1.5,dx/60))+'deg');const label=card.querySelector('.swipe-direction');if(label)label.textContent=dx>0?'Sounds good →':'← Not tonight'}
+
 function geodistance(lat1,lon1,lat2,lon2){const a=Math.PI/180,dLat=(lat2-lat1)*a,dLon=(lon2-lon1)*a,x=Math.sin(dLat/2)**2+Math.cos(lat1*a)*Math.cos(lat2*a)*Math.sin(dLon/2)**2;return 3958.8*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
 // Escape regex metacharacters and quotes so an arbitrary name stays a literal search term.
 function overpassNamePattern(name){
@@ -877,7 +890,7 @@ copy(pollUrl(poll.id));return}
  }
  if(act==='swipeNo'){voteSwipe(false);return}
  if(act==='swipeYes'){voteSwipe(true);return}
- if(act==='swipeBack'){state.swipeIndex=Math.max(0,state.swipeIndex-1);render();return}
+ if(act==='swipeBack'){swipeTouch=null;state.swipeAnnouncement='';state.swipeIndex=Math.max(0,state.swipeIndex-1);const focused=document.activeElement;if(focused?.dataset?.act==='swipeBack'){renderKeepingFocus(focused);if(!state.swipeIndex)$('swipeCard')?.focus?.({preventScroll:true})}else render();return}
  if(act==='cancelVoteEdit'){state.editingVote=false;render();return}
  if(act==='resetVote'){
   if(inGroup(poll?.id))return;
@@ -886,7 +899,7 @@ copy(pollUrl(poll.id));return}
    await loadPoll(poll.id);if(poll.status!=='open'){state.editingVote=false;render();toast('Voting has finished. Your saved vote is included.');return}
    const ballot=await rpc('gw_get_my_ballot',{p_poll_id:poll.id,p_member_token:memberToken});
    if(ballot===null)throw Error('Could not find your saved vote. Refresh and try again.');
-   state.approvals=new Set(poll.method==='approval'?ballot:[]);state.swipes=poll.method==='swipe'?{...ballot}:{};state.rank=poll.method==='ranked'?[...ballot]:[];state.swipeIndex=0;state.editingVote=true;render();
+   state.swipeAnnouncement='';state.approvals=new Set(poll.method==='approval'?ballot:[]);state.swipes=poll.method==='swipe'?{...ballot}:{};state.rank=poll.method==='ranked'?[...ballot]:[];state.swipeIndex=0;state.editingVote=true;render();
   });return;
  }
  if(act==='submitVote'){
@@ -964,7 +977,7 @@ app.addEventListener('change',e=>{
   const i=Number(t.dataset.rank);state.rank[i]=t.value;
   if(t.value)state.rank=state.rank.map((v,j)=>j!==i&&v===t.value?'':v);
   // Preserve the native select node: replacing/refocusing it reopens the iOS picker.
-  for(let j=0;j<Math.min(3,poll.options.length);j++){const select=$('rank'+j);if(select&&select!==t)select.value=state.rank[j]||'';const logo=$('rankLogo'+j);if(logo)logo.innerHTML=rankLogo(j)}
+  for(let j=0;j<Math.min(3,poll.options.length);j++){const select=$('rank'+j);if(select&&select!==t)select.value=state.rank[j]||'';const logo=$('rankLogo'+j);if(logo)logo.innerHTML=rankLogo(j);const detail=$('rankDetails'+j);if(detail)detail.innerHTML=rankDetails(j)}
   const ready=rankReady(),submit=app.querySelector?.('[data-act="submitVote"]');if(submit)submit.disabled=!ready;
   const summary=app.querySelector?.('.ballot-summary');if(summary)summary.innerHTML='<strong>'+esc((member?.name||'Practice voter')+' · '+state.rank.filter(Boolean).length+' of '+Math.min(3,poll.options.length)+' ranked')+'</strong><span>'+(ready?'Ready when you are':'Choose a different place for each rank')+'</span>';
  }else if(t.name==='method'){state.method=t.value;renderKeepingFocus(t)}
@@ -986,17 +999,25 @@ app.addEventListener('input',e=>{
 });
 let swipeTouch=null;
 app.addEventListener('touchstart',e=>{
- swipeTouch=null;
- if(e.touches.length!==1||!e.target.closest('#swipeCard'))return;
+ swipeTouch=null;clearSwipeFeedback();
+ if(state.pendingAction||e.touches.length!==1||!e.target.closest('#swipeCard'))return;
  const t=e.changedTouches[0];
- swipeTouch={id:t.identifier,x:t.screenX,y:t.screenY};
+ swipeTouch={id:t.identifier,x:t.screenX,y:t.screenY,vertical:false,option:poll?.options[state.swipeIndex]?.id};
 },{passive:true});
-app.addEventListener('touchcancel',()=>{swipeTouch=null},{passive:true});
+app.addEventListener('touchmove',e=>{
+ const start=swipeTouch;if(!start)return;
+ if(e.touches.length!==1){swipeTouch=null;clearSwipeFeedback();return}
+ const t=Array.from(e.touches).find(t=>t.identifier===start.id);if(!t)return;
+ const dx=t.screenX-start.x,dy=t.screenY-start.y;
+ // Once a gesture is a scroll, later horizontal drift must never answer a card.
+ if(Math.abs(dy)>10&&Math.abs(dy)>Math.abs(dx)){start.vertical=true;clearSwipeFeedback()}
+ if(!start.vertical&&Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)*1.5)showSwipeFeedback(dx);
+},{passive:true});
+app.addEventListener('touchcancel',()=>{swipeTouch=null;clearSwipeFeedback()},{passive:true});
 app.addEventListener('touchend',e=>{
- const start=swipeTouch;swipeTouch=null;
- if(!start||!e.target.closest('#swipeCard')||state.page!=='poll'||poll?.method!=='swipe')return;
- const t=Array.from(e.changedTouches).find(t=>t.identifier===start.id);
- if(!t)return;
+ const start=swipeTouch;swipeTouch=null;clearSwipeFeedback();
+ if(!start||start.vertical||state.pendingAction||!e.target.closest('#swipeCard')||state.page!=='poll'||poll?.method!=='swipe'||start.option!==poll.options[state.swipeIndex]?.id)return;
+ const t=Array.from(e.changedTouches).find(t=>t.identifier===start.id);if(!t)return;
  const dx=t.screenX-start.x,dy=t.screenY-start.y;
  if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)voteSwipe(dx>0);
 },{passive:true});
