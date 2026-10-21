@@ -10,7 +10,7 @@
  function invite(poll,name,url){const t=theme(poll);return `${t?t.emoji:'🍽️'} Goodnights • ${t?t.title:poll.meal} vote!\n\nHey ${name}! 🗳️ ${t?t.tagline:'Help us pick where to eat.'}\n${({approval:'✅ Choose up to 2 favorites.',swipe:'👍 Say yes or no to every place.',ranked:'🥇 Rank your top choices.'})[poll.method]}\n\n🔒 Your personal voting link (just for you):\n${url}`}
  function result(poll,tally,url){
   const winners=(poll.options||[]).filter(r=>tally.winners.includes(r.id));
-  const heading=winners.length===1?'🏆 '+winners[0].name:winners.length?'🤝 It’s a tie: '+winners.map(r=>r.name).join(' / '):'🍽️ No winner this time';
+  const heading=tally.outcome==='no-choice'?'Nothing sounds good tonight':winners.length===1?'🏆 '+winners[0].name:winners.length?'🤝 It’s a tie: '+winners.map(r=>r.name).join(' / '):'🍽️ No winner this time';
   const scores=(poll.options||[]).filter(r=>poll.method!=='ranked'||r.id in (tally.rounds.at(-1)||{})).sort((a,b)=>tally.scores[b.id]-tally.scores[a.id]).slice(0,3).map(r=>`${winners.some(w=>w.id===r.id)?'⭐':'•'} ${r.name}: ${poll.method==='swipe'?Math.round(100*tally.scores[r.id]/Math.max(1,poll.voted_count))+'% yes':tally.scores[r.id]+(poll.method==='ranked'?' votes':' approvals')}`).join('\n');
   const place=winners.length===1?winners[0]:null;
   const where=place?.address?'\n📍 '+place.address:'';
