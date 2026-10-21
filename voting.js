@@ -5,7 +5,7 @@
     const scores=Object.fromEntries(options.map(o=>[o.id,0]));
     const activeIds=options.map(o=>o.id);
     let winners=[],details='',rounds=[];
-    if(!ballots.length) return {scores,winners,details:'No ballots were submitted.',rounds};
+    if(!ballots.length) return {scores,winners,details:'No ballots were submitted.',rounds,tiedWinners:[],randomlyResolved:false,outcome:'empty'};
     if(poll.method==='approval'){
       ballots.forEach(ballot=>Array.from(new Set(ballot||[])).forEach(id=>{if(id in scores)scores[id]++}));
       const best=Math.max(...Object.values(scores));
@@ -15,7 +15,7 @@
       ballots.forEach(ballot=>activeIds.forEach(id=>{if(ballot[id]===true)scores[id]++}));
       const best=Math.max(...Object.values(scores));
       winners=activeIds.filter(id=>scores[id]===best);
-      details=`${Math.round(best/ballots.length*100)}% positive votes (${best}/${ballots.length}).`;
+      details=`Most yes votes: ${best}/${ballots.length} (${Math.round(best/ballots.length*100)}% positive).`;
     } else {
       let active=[...activeIds];
       while(active.length){
@@ -50,7 +50,14 @@
       winners=[poll.tie_winner_id];
       details+=' 🎲 Chosen randomly between '+tiedWinners.length+' tied leaders. Votes are unchanged.';
     }
-    return {scores,winners,details,rounds,tiedWinners,randomlyResolved};
+    // Honor immutable historical draws before applying the new no-choice rule.
+    const noSupport=poll.method==='swipe'&&Math.max(...Object.values(scores))===0;
+    if(noSupport&&!randomlyResolved){
+      return {scores,winners:[],details:'No restaurant received a yes vote. The organizer can start a new shortlist.',rounds,tiedWinners:[],randomlyResolved:false,outcome:'no-choice'};
+    }
+    if(noSupport)details+=' Historical saved draw: no restaurant received a yes vote.';
+    const outcome=randomlyResolved?'random':winners.length>1?'tie':winners.length?'winner':'empty';
+    return {scores,winners,details,rounds,tiedWinners,randomlyResolved,outcome};
   }
   root.GoodnightsVoting={tally};
   if(typeof module!=='undefined'&&module.exports) module.exports={tally};

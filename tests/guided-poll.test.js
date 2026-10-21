@@ -1,11 +1,11 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const tick=()=>new Promise(r=>setImmediate(r));
-async function setup({owner=true,memberId='m0',failPeople=false,anonymous=false,method='approval',allowHome=true,group=false,saved=false,welcome=false,sharedStore={},pollId='p1',cuisine='',familyId='family-fixture',raceVote=false,pizzaOnly=false,tied=false}={}){
+async function setup({owner=true,memberId='m0',failPeople=false,anonymous=false,method='approval',allowHome=true,group=false,saved=false,welcome=false,sharedStore={},pollId='p1',cuisine='',familyId='family-fixture',raceVote=false,pizzaOnly=false,tied=false,allNo=false,earlyClosed=false}={}){
  const calls=[],shares=[],listeners={},store=sharedStore,nodes={},timers=[];const photo='data:image/jpeg;base64,/9j/AAA=';
  const people=[{id:'m0',name:'Taylor',avatar:photo,token:anonymous?'ab'.repeat(24):'fixture-taylor',phone:'taylor@icloud.com',active:true},{id:'m1',name:'Morgan',avatar:'🦊',token:'fixture-morgan',phone:'+15551234567',active:true},{id:'m2',name:'Sam',avatar:'🏀',token:'fixture-sam',phone:'',active:true}];
  const restaurants=[{id:'r0',name:'Pizza night',category:'Pizza',address:'100 Main St, Town'},{id:'r1',name:pizzaOnly?'Another pizza place':'Taco time',category:pizzaOnly?'Pizza':'Mexican',address:'Town'}];
  let chosen=['m0','m1'],voted=new Set(saved?[memberId]:[]),statusError=failPeople,confirmResult=true,ineligibleOverride=false;let tieWinner=null;let settings={allow_member_home:allowHome,group_join_token:group?'fixture-group':null};
- const current=()=>({id:pollId,tie_winner_id:tieWinner,cuisine,meal:'Dinner',method,allow_member_home:settings.allow_member_home,status:voted.size>=chosen.length?'closed':'open',expected_voters:chosen.length,voted_count:voted.size,roster_enabled:true,options:restaurants,ballots:voted.size>=chosen.length?[...voted].map((_,i)=>[tied?'r'+i:'r0']):null});
+ const current=()=>({id:pollId,tie_winner_id:tieWinner,cuisine,meal:'Dinner',method,allow_member_home:settings.allow_member_home,status:earlyClosed||voted.size>=chosen.length?'closed':'open',expected_voters:chosen.length,voted_count:voted.size,roster_enabled:true,options:restaurants,ballots:earlyClosed||voted.size>=chosen.length?[...voted].map((_,i)=>method==='swipe'?(allNo?{r0:false,r1:false}:{r0:i===0,r1:i!==0}):[tied?'r'+i:'r0']):null});
  const family=()=>({name:'Fixture',restaurants,polls:[current()]});const app={innerHTML:'',addEventListener:(n,f)=>listeners[n]=f};
  const ctx={URL,crypto:require('node:crypto').webcrypto,console:{error(){},log(){}},setTimeout:()=>0,clearTimeout(){},setInterval:f=>{timers.push(f);return timers.length},clearInterval(){},window:{GW_CONFIG:{supabaseUrl:'https://fixture.test',publishableKey:'fixture'},scrollTo(){}},location:{href:(welcome?'https://example.test/':group&&!owner?'https://example.test/?poll=p1&join=fixture-group':anonymous?'https://example.test/?poll=p1':owner?'https://example.test/?family=fixture-owner':'https://example.test/?member='+people.find(p=>p.id===memberId).token+'&poll=p1').replace(/poll=p1/g,'poll='+pollId),pathname:'/'},confirm:()=>confirmResult,history:{replaceState(){}},localStorage:{getItem:k=>store[k]??null,key:i=>Object.keys(store)[i]??null,get length(){return Object.keys(store).length},setItem:(k,v)=>store[k]=v,removeItem:k=>delete store[k]},document:{getElementById:id=>({app,modeBadge:{},brand:{addEventListener(){}},toast:{classList:{add(){},remove(){}}}}[id]||nodes[id])},navigator:{share:async data=>shares.push(data),clipboard:{writeText:async t=>shares.push({text:t})}},fetch:async(url,request)=>{
   const fn=url.split('/').pop(),p=JSON.parse(request.body);calls.push({fn,p});let result;
@@ -146,4 +146,18 @@ test('background polling pauses on hidden pages and catches up when visible',asy
  const h=await setup({owner:false}),before=h.calls.length;
  h.setHidden(true);h.vote('m1');await h.pollTick();assert.equal(h.calls.length,before);
  h.setHidden(false);await h.pollTick();assert.ok(h.calls.length>before);assert.match(h.app.innerHTML,/1 of 2 votes in/);
+});
+
+for(const owner of [true,false])test('all-no results and shares agree for '+(owner?'organizer':'member')+', without draw/runoff actions',async()=>{
+ const h=await setup({owner,method:'swipe',allNo:true});h.vote('m0');h.vote('m1');await h.click('openpoll',{id:'p1'});
+ assert.match(h.app.innerHTML,/Nothing sounds good tonight/);assert.doesNotMatch(h.app.innerHTML,/class="trophy"|data-act="randomTie"|data-act="runoff"|DINNER IS DECIDED|Open in Maps/);
+ assert.equal(h.app.innerHTML.includes('data-act="newShortlist"'),owner);
+ await h.click('randomTie');await h.click('runoff');assert.equal(h.calls.filter(c=>c.fn==='gw_resolve_tie_random'||c.fn==='gw_create_poll_configured').length,0);
+ await h.click('shareResultsMessage');assert.match(h.shares.at(-1).text,/Nothing sounds good tonight/);assert.doesNotMatch(h.shares.at(-1).text,/🏆|member=|family=/);
+ if(owner){await h.click('newShortlist');assert.match(h.app.innerHTML,/Pick the contenders/);assert.match(h.app.innerHTML,/0 selected/);assert.equal(h.calls.filter(c=>c.fn.startsWith('gw_create_poll')).length,0)}
+ else{await h.click('newShortlist');assert.match(h.app.innerHTML,/Nothing sounds good tonight/)}
+});
+test('early closed all-no and historical saved zero-support results remain distinct',async()=>{
+ const h=await setup({method:'swipe',allNo:true,earlyClosed:true,saved:true});await h.click('openpoll',{id:'p1'});assert.match(h.app.innerHTML,/Nothing sounds good tonight/);
+ h.setTieWinner('r1');await h.click('openpoll',{id:'p1'});assert.match(h.app.innerHTML,/Historical saved draw/);assert.match(h.app.innerHTML,/Taco time/);assert.doesNotMatch(h.app.innerHTML,/data-act="newShortlist"|data-act="randomTie"/);
 });
