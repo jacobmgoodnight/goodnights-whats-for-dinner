@@ -17,7 +17,7 @@ const params=new URL(location.href).searchParams;
 const icon=(category='',name='',restaurant)=>window.GoodnightsLogos.render(restaurant||{name,category});
 let store, familyToken=localStorage.getItem(familyKey)||'',memberToken=localStorage.getItem(memberKey)||'',member=null,members=[],family=null,poll=null;
 const F=window.GoodnightsFamily;
-const state={repeatDraft:null,restaurantReview:null,allowMemberHome:false,groupJoin:true,includeCardAvatars:false,refreshError:false,deferredPollRender:false,createStep:0,selectedPeople:new Set(),peopleInitialised:false,peopleLoadError:false,reminderId:null,discoverOpen:false,restaurantDrafts:{},renderedPage:null,renderedEditingId:null,skipDraftCapture:false,editingVote:false,pendingAction:null,resultCard:null,cardBusy:false,preview:false,editingMember:null,avatarDraft:'🙂',photoBusy:false,page:'home',selected:new Set(),meal:'Dinner',method:'approval',expected:4,
+const state={planning:null,planningError:false,tonight:null,pollTitle:'',autoTie:false,presetId:null,presetName:'',nominationDraft:{name:'',address:'',category:'',note:''},captionDraft:null,captionDirty:false,includeCaption:false,afterCreate:null,repeatDraft:null,restaurantReview:null,allowMemberHome:false,groupJoin:true,includeCardAvatars:false,refreshError:false,deferredPollRender:false,createStep:0,selectedPeople:new Set(),peopleInitialised:false,peopleLoadError:false,reminderId:null,discoverOpen:false,restaurantDrafts:{},renderedPage:null,renderedEditingId:null,skipDraftCapture:false,editingVote:false,pendingAction:null,resultCard:null,cardBusy:false,preview:false,editingMember:null,avatarDraft:'🙂',photoBusy:false,page:'home',selected:new Set(),meal:'Dinner',method:'approval',expected:4,
  name:localStorage.getItem('gw_name')||'',approvals:new Set(),swipes:{},swipeIndex:0,rank:[],
  pollSearch:'',pollCuisine:'',pollCenter:null,pollRadius:'',memberLoadError:false,search:'',nearby:[],nearbyBusy:false,center:null,city:'New Palestine, Indiana',restaurantName:'',nearbyQuery:'',
  adding:false,showNearby:false,busy:false,notice:'',editingId:null};
@@ -69,6 +69,7 @@ function demoInit(){
 function demoSave(){localStorage.setItem(demoKey,JSON.stringify(store))}
 function demoRpc(fn,p){
  const F=store.family;
+ if(['gw_planning_home','gw_create_dinner','gw_save_dinner_preset','gw_get_dinner_preset','gw_archive_dinner_preset','gw_nominate_restaurant','gw_review_nomination','gw_set_results_caption'].includes(fn))return demoPlanningRpc(fn,p);
  if(fn==='gw_poll_settings'){
   const q=store.polls.find(q=>q.id===p.p_poll_id);if(!q||p.p_token!==F.token)throw Error('Organizer access denied');
   if(p.p_allow_member_home!==undefined)q.allow_member_home=p.p_allow_member_home;
@@ -88,7 +89,7 @@ function demoRpc(fn,p){
  if(fn==='gw_get_family'){
    if(p.p_token!==F.token)throw Error('Family link not found in this browser’s demo');
    return {id:F.id,name:F.name,restaurants:store.restaurants.filter(r=>r.active),
-     polls:[...store.polls].reverse().slice(0,20).map(q=>({id:q.id,meal:q.meal,method:q.method,expected_voters:q.expected_voters,status:q.status,created_at:q.created_at,voted_count:Object.keys(store.ballots[q.id]||{}).length}))};
+     polls:[...store.polls].reverse().slice(0,20).map(q=>({id:q.id,title:q.title||'',auto_tie:!!q.auto_tie,meal:q.meal,method:q.method,expected_voters:q.expected_voters,status:q.status,created_at:q.created_at,voted_count:Object.keys(store.ballots[q.id]||{}).length}))};
  }
  if(fn==='gw_add_restaurant'){
    const result=demoRpc('gw_save_restaurant_location',p);if(result.status==='review')throw Error('Possible duplicate or missing address. Review locations using the updated app');return result.id;
@@ -119,21 +120,21 @@ function demoRpc(fn,p){
  }
  if(fn==='gw_list_members'){if(p.p_token!==F.token)throw Error('Access denied');return store.members.filter(m=>m.active)}
  if(fn==='gw_create_poll_for_members'){const id=demoRpc('gw_create_poll',{...p,p_expected_voters:p.p_member_ids.length});store.polls.find(q=>q.id===id).member_ids=p.p_member_ids;demoSave();return id}
- if(fn==='gw_get_poll_people'){const q=store.polls.find(q=>q.id===p.p_poll_id);return {rostered:!!q.member_ids,eligible:false,people:store.members.filter(m=>!q.member_ids||q.member_ids.includes(m.id)).map(m=>({id:m.id,name:m.name,avatar:m.avatar,active:m.active,voted:false}))}}
+ if(fn==='gw_get_poll_people'){const q=store.polls.find(q=>q.id===p.p_poll_id);return {rostered:!!q.member_ids,eligible:false,people:store.members.filter(m=>!q.member_ids||q.member_ids.includes(m.id)).map(m=>({id:m.id,name:m.name,avatar:m.avatar,active:m.active,voted:!!(store.ballots[q.id]?.[m.id]||store.ballots[q.id]?.[m.name.trim().toLowerCase()])}))}}
  if(fn==='gw_create_poll'){
    const q={id:uid(),family_id:F.id,meal:p.p_meal,method:p.p_method,expected_voters:p.p_expected_voters,status:'open',created_at:new Date().toISOString(),restaurant_ids:p.p_restaurant_ids};store.polls.push(q);store.ballots[q.id]={};demoSave();return q.id;
  }
  if(fn==='gw_get_poll'){
    const q=store.polls.find(q=>q.id===p.p_poll_id);if(!q)throw Error('Poll is not in this browser’s demo');
    const b=Object.values(store.ballots[q.id]||{}),ready=q.status==='closed'||b.length>=q.expected_voters;
-   return {id:q.id,meal:q.meal,method:q.method,expected_voters:q.expected_voters,created_at:q.created_at,
+   return {id:q.id,title:q.title||'',auto_tie:!!q.auto_tie,meal:q.meal,method:q.method,expected_voters:q.expected_voters,created_at:q.created_at,
     tie_winner_id:q.tie_winner_id||null,cuisine:q.cuisine||'',allow_member_home:q.allow_member_home!==false,voted_count:b.length,status:ready?'closed':'open',options:q.restaurant_ids.map(id=>store.restaurants.find(x=>x.id===id)).filter(Boolean),
     ballots:ready?b.map(x=>x.ballot):null};
  }
  if(fn==='gw_vote'){
    const q=store.polls.find(q=>q.id===p.p_poll_id),b=store.ballots[q.id];
    if(q.status!=='open'||Object.keys(b).length>=q.expected_voters)throw Error('Voting is closed');
-   b[p.p_voter_name.trim().toLowerCase()]={name:p.p_voter_name,ballot:p.p_ballot};demoSave();return {ok:true};
+   b[p.p_voter_name.trim().toLowerCase()]={name:p.p_voter_name,ballot:p.p_ballot};demoProcessDinnerPoll(q.id);demoSave();return {ok:true};
  }
  if(fn==='gw_resolve_tie_random'){
    if(p.p_token!==F.token)throw Error('Organizer access denied');
@@ -141,12 +142,56 @@ function demoRpc(fn,p){
    if(q.tie_winner_id)return q.tie_winner_id;
    const result=demoRpc('gw_get_poll',{p_poll_id:q.id}),leaders=window.GoodnightsVoting.tally(result).winners;
    if(result.status!=='closed'||leaders.length<2)throw Error('Finish a tied vote first.');
-   q.tie_winner_id=leaders[Math.floor(Math.random()*leaders.length)];q.status='closed';demoSave();return q.tie_winner_id;
+   q.tie_winner_id=leaders[Math.floor(Math.random()*leaders.length)];q.status='closed';demoProcessDinnerPoll(q.id);demoSave();return q.tie_winner_id;
  }
  if(fn==='gw_close_poll'){
-   const q=store.polls.find(q=>q.id===p.p_poll_id);if(q)q.status='closed';demoSave();return !!q;
+   const q=store.polls.find(q=>q.id===p.p_poll_id);if(q){q.status='closed';demoProcessDinnerPoll(q.id)}demoSave();return !!q;
  }
  throw Error('Unknown action '+fn);
+}
+function demoProcessDinnerPoll(id){
+ const q=store.polls.find(p=>p.id===id),snapshot=demoRpc('gw_get_poll',{p_poll_id:id});if(snapshot.status!=='closed')return;
+ let result=window.GoodnightsVoting.tally(snapshot);
+ if(q.auto_tie&&!q.tie_winner_id&&result.winners.length>1&&Math.max(...Object.values(result.scores))>0){demoRpc('gw_resolve_tie_random',{p_token:store.family.token,p_poll_id:id});return}
+ const kind=result.outcome==='no-choice'?'no-choice':!snapshot.voted_count?'empty':result.winners.length>1?'tie':'decided';store.events??=[];
+ const phase=kind==='decided'&&store.events.some(e=>e.poll_id===id&&e.kind==='tie')?'resolved':'completion';
+ if(!store.events.some(e=>e.poll_id===id&&e.phase===phase))store.events.push({id:uid(),poll_id:id,kind,phase,title:q.title||'',created_at:new Date().toISOString()});
+}
+function demoPlanningRpc(fn,p){
+ const owner=p.p_token===store.family.token,actor=(store.members||[]).find(m=>m.token===p.p_member_token&&m.active!==false);
+ store.presets??=[];store.nominations??=[];store.events??=[];
+ if(fn!=='gw_nominate_restaurant'&&fn!=='gw_planning_home'&&!owner)throw Error('Organizer access denied');
+ if(fn==='gw_planning_home'){
+  if(!owner&&!actor)throw Error('Family access denied');
+  return {ready:true,caption:owner?store.caption||'':'',can_nominate:!owner,active_polls:owner?[...store.polls].reverse().filter(q=>q.status==='open'&&Object.keys(store.ballots[q.id]||{}).length<q.expected_voters).map(q=>({...q,voted_count:Object.keys(store.ballots[q.id]||{}).length})):[],presets:owner?store.presets.filter(p=>p.active!==false).map(p=>({id:p.id,name:p.name,places:p.draft.place_ids.length,people:p.draft.member_ids.length})):[],nominations:store.nominations.filter(n=>owner||n.member_id===actor?.id).map(n=>({...n,by_name:owner?store.members.find(m=>m.id===n.member_id)?.name:null})),events:owner?store.events.slice(-10).reverse():[]};
+ }
+ if(fn==='gw_set_results_caption'){if(String(p.p_caption).length>100)throw Error('Caption is too long');store.caption=String(p.p_caption||'').trim();demoSave();return store.caption}
+ if(fn==='gw_create_dinner'||fn==='gw_save_dinner_preset'){
+  const d=p.p_draft;if(!d||Object.keys(d).some(k=>!['place_ids','member_ids','meal','method','cuisine','title','auto_tie','allow_member_home','group_join'].includes(k)))throw Error('Invalid dinner draft fields');
+  if(d.place_ids.length<2||d.place_ids.length>20||!d.member_ids.length||d.member_ids.length>20||d.place_ids.some(id=>!store.restaurants.some(r=>r.id===id&&r.active))||d.member_ids.some(id=>!store.members.some(m=>m.id===id&&m.active!==false)))throw Error('Places or people changed. Review the draft again');
+  if(fn==='gw_create_dinner'){const id=demoRpc('gw_create_poll_themed',{p_token:p.p_token,p_meal:d.meal,p_method:d.method,p_restaurant_ids:d.place_ids,p_member_ids:d.member_ids,p_allow_member_home:d.allow_member_home,p_group_join:d.group_join,p_cuisine:d.cuisine});Object.assign(store.polls.find(q=>q.id===id),{title:d.title,auto_tie:d.auto_tie});demoSave();return id}
+  if(!p.p_name?.trim()||p.p_name.length>60)throw Error('Enter a preset name');
+  let preset=store.presets.find(x=>x.id===p.p_preset_id&&x.active!==false);
+  if(p.p_preset_id&&!preset)throw Error('Preset unavailable');
+  if(store.presets.some(x=>x.id!==preset?.id&&x.active!==false&&x.name.toLowerCase()===p.p_name.trim().toLowerCase()))throw Error('A preset already uses that name');
+  if(!preset){if(store.presets.filter(x=>x.active!==false).length>=20)throw Error('Maximum of 20 presets');preset={id:uid(),active:true};store.presets.push(preset)}
+  Object.assign(preset,{name:p.p_name.trim(),draft:JSON.parse(JSON.stringify(d))});demoSave();return preset.id;
+ }
+ if(fn==='gw_get_dinner_preset'||fn==='gw_archive_dinner_preset'){
+  const preset=store.presets.find(x=>x.id===p.p_preset_id&&x.active!==false);if(!preset)throw Error('Preset unavailable');
+  if(fn==='gw_archive_dinner_preset'){preset.active=false;demoSave();return true}
+  return {...preset,options:preset.draft.place_ids.map(id=>store.restaurants.find(r=>r.id===id)||{id,name:'Unavailable place',active:false}),people:preset.draft.member_ids.map(id=>store.members.find(m=>m.id===id)||{id,name:'Unavailable person',active:false})};
+ }
+ if(fn==='gw_nominate_restaurant'){
+  if(!actor)throw Error('Use your active personal family link');if(!p.p_name?.trim())throw Error('Enter a restaurant name');
+  const old=store.nominations.find(n=>n.member_id===actor.id&&n.status==='pending'&&window.GoodnightsMaps.locationKey(n.name)===window.GoodnightsMaps.locationKey(p.p_name)&&window.GoodnightsMaps.locationKey(n.address)===window.GoodnightsMaps.locationKey(p.p_address));if(old)return old.id;
+  if(store.nominations.filter(n=>n.member_id===actor.id&&n.status==='pending').length>=10)throw Error('Wait for the organizer to review suggestions');
+  const n={id:uid(),member_id:actor.id,name:p.p_name.trim(),address:p.p_address||'',category:p.p_category||'',note:p.p_note||'',status:'pending',created_at:new Date().toISOString()};store.nominations.push(n);demoSave();return n.id;
+ }
+ if(fn==='gw_review_nomination'){
+  const n=store.nominations.find(n=>n.id===p.p_nomination_id);if(!n)throw Error('Suggestion unavailable');
+  if(!p.p_dismiss&&!store.restaurants.some(r=>r.id===p.p_restaurant_id&&r.active))throw Error('Choose a current saved location');Object.assign(n,{status:p.p_dismiss?'dismissed':'accepted',restaurant_id:p.p_restaurant_id||null});demoSave();return true;
+ }
 }
 async function rpc(fn,p){
  if(!live)return demoRpc(fn,p);
@@ -161,7 +206,7 @@ const memberUrl=t=>{const u=new URL(location.href);u.search='?member='+encodeURI
 const familyUrl=()=>{const u=new URL(location.href);u.search='?family='+encodeURIComponent(familyToken);u.hash='';return u.href};
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),4000)}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('Link copied!')}catch{prompt('Copy this link:',text)}}
-const pendingLabels={confirmLocation:'Saving location…',useSavedLocation:'Using saved location…',repeatDinner:'Loading dinner draft…',join:'Connecting invitation…',chooseGroupMember:'Opening your ballot…',savePollSettings:'Saving voting options…',deletePoll:'Deleting vote…',clearHistory:'Clearing finished votes…',connectVote:'Connecting your phone…',createPoll:'Creating vote…',submitVote:'Saving your vote…',addMember:'Adding member…',saveMemberProfile:'Saving profile…',saveRestaurant:'Saving restaurant…',addManual:'Saving restaurant…',saveGoogle:'Saving restaurant…',addNearby:'Saving restaurant…',archive:'Hiding restaurant…',resetMemberLink:'Resetting link…',removeMember:'Removing member…',closePoll:'Closing vote…',randomTie:'Picking a tied winner…',runoff:'Creating runoff…',newFamily:'Creating family…',resetVote:'Loading your vote…'};
+const pendingLabels={savePreset:'Saving preset…',usePreset:'Opening preset…',archivePreset:'Removing preset…',nominatePlace:'Sending suggestion…',dismissNomination:'Reviewing suggestion…',saveResultsCaption:'Saving caption…',enableAlerts:'Enabling alerts…',disableAlerts:'Disabling alerts…',retryPlanning:'Refreshing…',tonightAction:'Opening vote…',confirmLocation:'Saving location…',useSavedLocation:'Using saved location…',repeatDinner:'Loading dinner draft…',join:'Connecting invitation…',chooseGroupMember:'Opening your ballot…',savePollSettings:'Saving voting options…',deletePoll:'Deleting vote…',clearHistory:'Clearing finished votes…',connectVote:'Connecting your phone…',createPoll:'Creating vote…',submitVote:'Saving your vote…',addMember:'Adding member…',saveMemberProfile:'Saving profile…',saveRestaurant:'Saving restaurant…',addManual:'Saving restaurant…',saveGoogle:'Saving restaurant…',addNearby:'Saving restaurant…',archive:'Hiding restaurant…',resetMemberLink:'Resetting link…',removeMember:'Removing member…',closePoll:'Closing vote…',randomTie:'Picking a tied winner…',runoff:'Creating runoff…',newFamily:'Creating family…',resetVote:'Loading your vote…'};
 const pendingControls=new Map();
 function syncPendingUI(){
  if(state.pendingAction){
@@ -215,7 +260,7 @@ function restaurantRow(r,{select=false,remove=false}={}){
  ${remove?`<div class="restaurant-actions"><button class="btn btn-quiet btn-sm" data-act="editRestaurant" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.name)}">Edit</button><button class="btn btn-line btn-sm" data-act="archive" data-id="${esc(r.id)}" aria-label="Hide ${esc(r.name)}">Hide</button></div>`:''}</${select?'label':'div'}>`
 }
 function normalizeFamily(data){if(data?.polls)data.polls=data.polls.map(p=>({...p,status:p.status==='closed'||p.expected_voters>0&&p.voted_count>=p.expected_voters?'closed':'open'}));return data}
-async function loadFamily(){if(memberToken&&!familyToken){const m=await rpc('gw_get_member',{p_member_token:memberToken});member={id:m.id,name:m.name,avatar:m.avatar};family=normalizeFamily(m.family);return}if(!familyToken){family=null;return}family=normalizeFamily(await rpc('gw_get_family',{p_token:familyToken}))}
+async function loadFamily(){if(memberToken&&!familyToken){const m=await rpc('gw_get_member',{p_member_token:memberToken});member={id:m.id,name:m.name,avatar:m.avatar};family=normalizeFamily(m.family);await loadPlanning();return}if(!familyToken){family=null;return}family=normalizeFamily(await rpc('gw_get_family',{p_token:familyToken}));await loadPlanning()}
 async function loadMembers(){members=familyToken?await rpc('gw_list_members',{p_token:familyToken}):[]}
 async function loadPoll(id){
  const previous=poll,next=await rpc('gw_get_poll',{p_poll_id:id});
@@ -237,21 +282,80 @@ function render(){
 }
 function renderWelcome(){layout(`<div class="card hero"><div class="eyebrow">WELCOME TO GOODNIGHTS</div><h1>Good food. <br>Family decisions.</h1><p class="lede">Create your family's private restaurant list and let everyone have a say.</p>
  ${live?`<button class="btn btn-dark" data-act="newFamily">Create our family</button><div class="field"><label>Already have an invitation?</label><input id="joinToken" placeholder="Paste your personal or organizer link"></div><button class="btn btn-line" data-act="join">Join family</button>`:`<button class="btn btn-dark" data-act="demo">Explore the sample app</button><p class="note">Demo only until you connect Supabase. Votes stay in this browser and cannot be shared with other phones.</p>`}</div>`,{nav:false})}
+let homeTimer=null,homeRefreshing=false,planningSession=0,planningIdentity='';
+async function loadPlanning(includeTonight=true){
+ const session=++planningSession;
+ const identity=familyToken||memberToken;if(identity!==planningIdentity){planningIdentity=identity;state.planning=null;state.captionDraft=null;state.captionDirty=false;state.includeCaption=false;state.tonight=null}
+ if(!familyToken&&!memberToken){state.planning=null;state.tonight=null;return}
+ try{
+  const data=await rpc('gw_planning_home',{p_token:familyToken||null,p_member_token:familyToken?null:memberToken});
+  if(session!==planningSession)return;state.planning=data;state.planningError=false;if(familyToken&&window.GoodnightsAlerts)await window.GoodnightsAlerts.prepare({rpc,token:familyToken});
+  if(!state.captionDirty)state.captionDraft=data.caption||'';
+  if(includeTonight&&familyToken){
+   const q=(data.active_polls||[])[0];state.tonight=q||null;
+   if(q)try{const next=await rpc('gw_get_poll',{p_poll_id:q.id});await loadPeople(next,false);if(session===planningSession)state.tonight=next.status==='open'?next:null}catch{if(session===planningSession)state.tonight={...q,people_error:true}}
+  }
+ }catch{if(session===planningSession){state.planning=null;state.planningError=true;state.tonight=null}}
+}
+function planningDraft(ids=[...state.selected],people=selectedPeople().map(m=>m.id)){
+ return {place_ids:ids,member_ids:people,meal:state.meal,method:state.method,cuisine:state.pollCuisine,title:state.pollTitle.trim(),auto_tie:state.autoTie,allow_member_home:state.allowMemberHome,group_join:state.groupJoin};
+}
+function startHomeUpdates(){
+ if(homeTimer!==null||!familyToken)return;
+ homeTimer=setInterval(async()=>{
+  if(document.hidden||state.page!=='home'||state.pendingAction||homeRefreshing||document.activeElement?.matches?.('input,select,textarea,button,a,summary')||app.querySelector?.('details[open]'))return;
+  homeRefreshing=true;try{const previous=JSON.stringify([family?.polls,state.tonight,state.planning]);await loadFamily();if(state.page==='home'&&previous!==JSON.stringify([family?.polls,state.tonight,state.planning])&&!document.activeElement?.matches?.('input,select,textarea,button,a,summary')&&!app.querySelector?.('details[open]'))render()}catch{state.planningError=true}finally{homeRefreshing=false}
+ },15000);
+}
+function tonightHero(){
+ const q=state.tonight;if(!q||q.status!=='open')return '';
+ const waiting=(q.people||[]).filter(m=>!m.voted),others=(state.planning?.active_polls||[]).filter(p=>p.id!==q.id);
+ return `<section class="card hero tonight-card"><div class="eyebrow">TONIGHT · ${esc(family.name)}</div><h1>${esc(q.title||"What's the plan?")}</h1><div class="between"><strong>${esc(q.title||q.meal)} · ${methodName(q.method)}</strong>${pill(q)}</div><h2 style="margin-top:20px">${q.voted_count} of ${q.expected_voters} have voted</h2><div class="progress"><span style="width:${Math.min(100,100*q.voted_count/q.expected_voters)}%"></span></div><p class="subtle">${q.people_error?'Participant status could not be refreshed.':waiting.length?'Waiting on '+esc(waiting.map(m=>m.name+(m.active===false?' (unavailable)':'')).join(', '))+'.':'Open the vote to check who is still waiting.'}</p><button class="btn btn-primary" data-act="tonightAction" data-id="${esc(q.id)}">${waiting.some(m=>m.active!==false)?'Review reminders':'Open vote →'}</button>${others.length?`<details style="margin-top:12px"><summary>${others.length} other open vote${others.length===1?'':'s'}</summary>${others.map(p=>`<button class="btn btn-line btn-sm" data-act="openpoll" data-id="${esc(p.id)}">${esc(p.title||p.meal)} · ${p.voted_count}/${p.expected_voters}</button>`).join('')}</details>`:''}</section>`;
+}
+function planningHomeHtml(){
+ const d=state.planning;
+ if(!d?.ready)return state.planningError?'<p class="note">Planning extras could not load. Existing votes still work. <button class="btn btn-line btn-sm" data-act="retryPlanning">Retry</button></p>':'';
+ if(!familyToken)return nominationHtml();
+ const pending=(d.nominations||[]).filter(n=>n.status==='pending');
+ return `<section class="card"><h2>Dinner presets</h2><p class="note">Open an editable draft. Nothing is created until you confirm.</p>${(d.presets||[]).length?d.presets.map(p=>`<div class="item"><div class="item-body"><strong>${esc(p.name)}</strong><div class="item-detail">${p.places} places · ${p.people} people</div></div><button class="btn btn-quiet btn-sm" data-act="usePreset" data-id="${esc(p.id)}">Use</button><button class="btn btn-line btn-sm" data-act="archivePreset" data-id="${esc(p.id)}" aria-label="Remove preset ${esc(p.name)}">Remove</button></div>`).join(''):'<p class="subtle">Save a preset from the Review step of a new vote.</p>'}</section><details class="card"><summary>Family suggestions${pending.length?' · '+pending.length+' to review':''}</summary>${pending.length?pending.map(n=>`<div class="item nomination-row"><div class="item-body"><strong>${esc(n.name)}</strong><div class="item-detail">${esc(n.address||'Location not saved')} · suggested by ${esc(n.by_name||'a family member')}</div>${n.note?`<p class="note">${esc(n.note)}</p>`:''}</div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="reviewNomination" data-id="${esc(n.id)}">Review location</button><button class="btn btn-line btn-sm" data-act="dismissNomination" data-id="${esc(n.id)}">Dismiss</button></div></div>`).join(''):'<p class="note">No suggestions waiting. Members can suggest places from their personal home screen.</p>'}</details><details class="card"><summary>Organizer alerts${(d.events||[]).length?' · '+d.events.length:''}</summary>${alertsSettingsHtml()}${(d.events||[]).map(e=>`<div class="item"><div class="item-body"><strong>${esc(e.title||'Family vote')}</strong><div class="item-detail">${({tie:'Tie needs your decision',decided:'Voting finished',empty:'Closed without ballots','no-choice':'Nothing sounds good tonight'})[e.kind]||'Results ready'} · ${timeAgo(e.created_at)}</div></div><button class="btn btn-line btn-sm" data-act="openpoll" data-id="${esc(e.poll_id)}">Open</button></div>`).join('')}</details>`;
+}
+function nominationHtml(){
+ if(!memberToken||familyToken||!state.planning?.can_nominate)return '';
+ const n=state.nominationDraft;
+ return `<details class="card"><summary>Suggest a place for the family</summary><p class="note">The organizer reviews each location before adding it. This does not change an active vote.</p><div class="field"><label for="nominationName">Restaurant name</label><input id="nominationName" maxlength="120" value="${esc(n.name)}"></div><div class="field"><label for="nominationAddress">Address or town (optional)</label><input id="nominationAddress" maxlength="240" value="${esc(n.address)}"></div><div class="field"><label for="nominationCategory">Cuisine (optional)</label><input id="nominationCategory" maxlength="80" value="${esc(n.category)}"></div><div class="field"><label for="nominationNote">Why try it? (optional)</label><input id="nominationNote" maxlength="250" value="${esc(n.note)}"></div><button class="btn btn-primary" data-act="nominatePlace">Send suggestion to organizer</button>${(state.planning.nominations||[]).map(n=>`<div class="item"><div class="item-body"><strong>${esc(n.name)}</strong><div class="item-detail">${esc(n.address||'Location not saved')} · ${n.status==='accepted'?'Added to saved places':n.status==='dismissed'?'Reviewed · not added':'Waiting for organizer review'}</div></div></div>`).join('')}</details>`;
+}
+function alertsSettingsHtml(){
+ const alerts=window.GoodnightsAlerts;
+ if(!live)return '<p class="note">Background push is available only in the connected app, after setup.</p>';
+ const available=alerts?.availability();
+ if(!available?.supported)return `<p class="note">${esc(available?.reason||'Push notifications are not supported in this browser.')} Alerts remain listed here when you open Goodnights.</p>`;
+ const push=alerts.status();
+ if(!push?.configured)return '<p class="note">Background delivery is not ready yet. Alerts remain listed here. <button class="btn btn-line btn-sm" data-act="retryPlanning">Refresh alerts</button></p>';
+ return `<p class="note">${available.permission==='denied'?'Notifications are blocked in device settings. Enable permission there before trying again.':push.enabled&&available.permission==='granted'?'Alerts are enabled on this device.':'Alerts are not enabled on this device.'}</p><p class="note">Opt in on this device for voting finished, ties needing you, and all-no outcomes. Notification text stays generic; names and private invitation links are excluded.</p><button class="btn btn-quiet btn-sm" data-act="enableAlerts">Enable alerts on this device</button><button class="btn btn-line btn-sm" data-act="disableAlerts">Disable alerts on this device</button><p class="note">Your device’s notification permission and Focus settings still apply.</p>`;
+}
+async function useDinnerPreset(id){
+ const [preset,currentFamily,currentMembers]=await Promise.all([rpc('gw_get_dinner_preset',{p_token:familyToken,p_preset_id:id}),rpc('gw_get_family',{p_token:familyToken}),rpc('gw_list_members',{p_token:familyToken})]);
+ const draft=repeatSelections(preset.options||[],preset.people||[],currentFamily,currentMembers),d=preset.draft;
+ family=normalizeFamily(currentFamily);members=currentMembers;state.selected=new Set(draft.selected);state.selectedPeople=new Set(draft.selectedPeople);state.peopleInitialised=true;state.peopleLoadError=false;
+ state.meal=d.meal;state.method=d.method;state.pollCuisine=d.cuisine||'';state.pollTitle=d.title||'';state.autoTie=!!d.auto_tie;state.allowMemberHome=!!d.allow_member_home;state.groupJoin=d.group_join!==false;state.presetId=preset.id;state.presetName=preset.name;
+ state.pollSearch='';state.pollCenter=null;state.pollRadius='';state.repeatDraft={notes:['Preset: '+preset.name+'. Review current places, people and voting options.',...draft.notes]};state.createStep=3;setPage('create');
+}
 function renderHome(){
  if(member&&!familyToken)return renderMemberHome();
  let latest=family.polls||[];
- layout(`<div class="card hero"><div class="hero-emoji">🍔</div><div class="eyebrow">${esc(family.name)} · DINNER CLUB</div><h1>So... what's for dinner?</h1><p class="lede">Skip the debate. Pick a few places, vote together, and let dinner decide itself.</p>${familyToken?`<button class="btn btn-dark" data-act="nav" data-page="create">Start a family vote →</button>`:`<p class="subtle">Signed in as ${esc(member?.name||"family member")}</p>`}</div>
+ startHomeUpdates();
+ layout(`${tonightHero()||`<div class="card hero"><div class="hero-emoji">🍔</div><div class="eyebrow">${esc(family.name)} · DINNER CLUB</div><h1>So... what's for dinner?</h1><p class="lede">Skip the debate. Pick a few places, vote together, and let dinner decide itself.</p>${familyToken?`<button class="btn btn-dark" data-act="nav" data-page="create">Start a family vote →</button>`:`<p class="subtle">Signed in as ${esc(member?.name||"family member")}</p>`}</div>`}
  ${!live?`<div class="muted-box" style="margin-bottom:15px"><strong>🧪 Local demo</strong><div>This sample works on this device only. To vote together on multiple phones, complete the Supabase + GitHub Pages setup in the README.</div></div>`:''}
  ${familyToken?`<div class="grid2"><div class="card"><span class="eyebrow">FAMILY FAVORITES</span><h2>🍽️ ${family.restaurants.length} places</h2><p class="subtle">Add restaurants once. Vote on them anytime.</p><button class="btn btn-quiet btn-sm" data-act="nav" data-page="restaurants">Manage restaurants ↗</button></div>
  <div class="card"><span class="eyebrow">INVITE FAMILY</span><h2>👨‍👩‍👧‍👦 Invite your people</h2><p class="subtle">Choose a person and copy their own voting link.</p><button class="btn btn-quiet btn-sm" data-act="nav" data-page="members">Personal invitations ↗</button></div></div>`:''}
  <div class="between" style="margin:22px 0 11px"><h2 style="margin:0">Recent votes</h2><button class="btn btn-quiet btn-sm" data-act="nav" data-page="history">View all</button></div>
- ${latest.length?latest.slice(0,4).map(q=>`<div class="card"><div class="between"><div><strong>${esc(q.meal)} · ${methodName(q.method)}</strong><div class="subtle">${timeAgo(q.created_at)} · ${q.voted_count}/${q.expected_voters} voted</div></div>${pill(q)}</div><button class="btn btn-quiet btn-sm" style="margin-top:12px" data-act="openpoll" data-id="${esc(q.id)}">Open vote →</button></div>`).join(''):
- `<div class="card empty"><span class="empty-emoji">🗳️</span><h3>Your first vote is waiting</h3><p>There are no polls yet.</p>${familyToken?`<button class="btn btn-primary" data-act="nav" data-page="create">Create first vote</button>`:''}</div>`}${installationGuide()}`)
+ ${latest.length?latest.slice(0,4).map(q=>`<div class="card"><div class="between"><div><strong>${esc(q.title||q.meal)} · ${methodName(q.method)}</strong><div class="subtle">${timeAgo(q.created_at)} · ${q.voted_count}/${q.expected_voters} voted</div></div>${pill(q)}</div><button class="btn btn-quiet btn-sm" style="margin-top:12px" data-act="openpoll" data-id="${esc(q.id)}">${q.status==='closed'?'See results →':'Open vote →'}</button></div>`).join(''):
+ `<div class="card empty"><span class="empty-emoji">🗳️</span><h3>Your first vote is waiting</h3><p>There are no polls yet.</p>${familyToken?`<button class="btn btn-primary" data-act="nav" data-page="create">Create first vote</button>`:''}</div>`}${planningHomeHtml()}${installationGuide()}`)
 }
 function renderMemberHome(){
  const polls=family.polls||[],open=polls.filter(p=>p.status==='open'),closed=polls.filter(p=>p.status==='closed');
- const cards=list=>list.map(p=>`<div class="card"><div class="between"><div><h3>${esc(p.meal)} · ${methodName(p.method)}</h3><p class="subtle">${timeAgo(p.created_at)} · ${p.voted_count}/${p.expected_voters} votes in</p></div>${pill(p)}</div><button class="btn btn-primary btn-full" data-act="openpoll" data-id="${esc(p.id)}">${p.status==='open'?'Open vote →':'See results →'}</button></div>`).join('');
- layout(`${memberIdentity(member)}<h1>Your family votes.</h1><p class="lede">Choose an open vote or catch up on the latest dinner decision.</p><h2>🗳️ Open votes</h2>${open.length?cards(open):'<div class="card empty"><h3>Nothing to vote on right now</h3><p>Your organizer will send an invitation when the next vote is ready.</p></div>'}<h2 style="margin-top:24px">🏆 Recent results</h2>${closed.length?cards(closed.slice(0,4)):'<p class="subtle">Finished votes will appear here.</p>'}${installationGuide()}`)
+ const cards=list=>list.map(p=>`<div class="card"><div class="between"><div><h3>${esc(p.title||p.meal)} · ${methodName(p.method)}</h3><p class="subtle">${timeAgo(p.created_at)} · ${p.voted_count}/${p.expected_voters} votes in</p></div>${pill(p)}</div><button class="btn btn-primary btn-full" data-act="openpoll" data-id="${esc(p.id)}">${p.status==='open'?'Open vote →':'See results →'}</button></div>`).join('');
+ layout(`${memberIdentity(member)}<h1>Your family votes.</h1><p class="lede">Choose an open vote or catch up on the latest dinner decision.</p><h2>🗳️ Open votes</h2>${open.length?cards(open):'<div class="card empty"><h3>Nothing to vote on right now</h3><p>Your organizer will send an invitation when the next vote is ready.</p></div>'}<h2 style="margin-top:24px">🏆 Recent results</h2>${closed.length?cards(closed.slice(0,4)):'<p class="subtle">Finished votes will appear here.</p>'}${nominationHtml()}${installationGuide()}`)
 }
 function memberAvatar(m){const a=F.avatar(m?.avatar);return a.startsWith('data:')?`<span class="member-avatar"><img data-member-avatar src="${esc(a)}" alt=""><span hidden>🙂</span></span>`:`<span class="member-avatar" aria-hidden="true">${esc(a)}</span>`}
 function memberIdentity(m){return `<div class="member-identity">${memberAvatar(m)}<div><span class="eyebrow">YOUR FAMILY VOTE</span><strong>${esc(m.name)}</strong></div></div>`}
@@ -287,14 +391,15 @@ function restaurantReviewHtml(){
  const exact=review.matches.some(r=>r.match==='exact');
  return `<section class="card location-review" id="locationReview" tabindex="-1" aria-label="Review restaurant location"><h2>${exact?'Already saved':'Review this location'}</h2><strong>${esc(review.draft.name)}</strong><p>${esc(review.draft.address||'Location not saved')}</p><p class="note">${esc(review.reason||(!review.draft.address?'Without an address, we cannot identify a manual duplicate. Review before saving.':review.matches.length?'Possible duplicate — compare the addresses. Same names or nearby coordinates alone do not identify a location.':'Confirm this name and address before saving.'))}</p>${review.matches.map(r=>`<div class="item"><div class="item-body"><strong>${esc(r.name)}</strong><div class="item-detail">${esc(r.address||'Location not saved')}</div><small>${r.match==='exact'?'Already saved':'Possible duplicate'}${r.active===false?' · Hidden':''}</small></div><div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="useSavedLocation" data-id="${esc(r.id)}">${r.active===false?'Restore saved':'Use saved'}</button>${r.active!==false?`<button class="btn btn-line btn-sm" data-act="editMatchedLocation" data-id="${esc(r.id)}">Edit saved</button>`:''}</div></div>`).join('')}<div class="btn-row" style="margin-top:16px"><button class="btn btn-line" data-act="cancelLocationReview">Edit entered details</button>${!exact&&review.can_keep_separate!==false?`<button class="btn btn-primary" data-act="confirmLocation">${review.matches.length||!review.draft.address?'Keep a separate location':'Save this location'}</button>`:''}</div><p class="note">Using a saved place preserves its address, logo and history. Only a new place receives the entered appearance.</p></section>`;
 }
-function reviewRestaurant(draft){
- state.restaurantReview={draft,matches:window.GoodnightsMaps.locationMatches(family.restaurants||[],draft)};render();$('locationReview')?.focus?.({preventScroll:true});$('locationReview')?.scrollIntoView?.({block:'start',behavior:'smooth'});
+function reviewRestaurant(draft,nominationId=null){
+ state.restaurantReview={draft,nominationId,matches:window.GoodnightsMaps.locationMatches(family.restaurants||[],draft)};render();$('locationReview')?.focus?.({preventScroll:true});$('locationReview')?.scrollIntoView?.({block:'start',behavior:'smooth'});
 }
 async function confirmRestaurantLocation(useId=null){
  const review=state.restaurantReview;if(!review)return;
  const r=review.draft;
  const result=await rpc('gw_save_restaurant_location',{p_token:familyToken,p_name:r.name,p_category:r.category||'',p_address:r.address||'',p_osm_id:r.osm_id||null,p_latitude:r.latitude??null,p_longitude:r.longitude??null,p_icon_mode:r.icon_mode||'auto',p_icon_value:r.icon_value||'',p_keep_separate:!useId&&(review.matches.length>0||!r.address),p_use_restaurant_id:useId,p_reviewed_ids:review.matches.map(r=>r.id)});
  if(result.status==='review'){state.restaurantReview={...review,matches:result.matches||[],reason:result.reason,can_keep_separate:result.can_keep_separate};render();$('locationReview')?.focus?.({preventScroll:true});return}
+ if(review.nominationId)await rpc('gw_review_nomination',{p_token:familyToken,p_nomination_id:review.nominationId,p_restaurant_id:result.id});
  await loadFamily();state.restaurantReview=null;render();toast(result.created?'Location saved':result.restored?'Saved location restored':'Using the saved location');
 }
 function renderRestaurants(){
@@ -347,7 +452,7 @@ function chooseCuisine(key){
 let installPrompt=null;
 function installationGuide(){
  if(!live||window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone)return '';
- return `<details class="card install-guide"><summary>📲 Add Goodnights to your phone</summary><p>Keep your dinner crew a tap away, with the same app for organizers and family.</p>${installPrompt?'<button class="btn btn-quiet" data-act="installApp">Install Goodnights</button>':''}<p class="note"><strong>iPhone / iPad:</strong> open this site in Safari, then use Share → Add to Home Screen. Turn on Open as Web App if offered.<br><strong>Android / desktop:</strong> use your browser’s Install app or Add to Home screen option.</p><p class="note">Keep your private invitation link. If the installed app opens without your identity, open your invitation there or connect it using the link field. A family group invitation also works for that vote.</p><p class="note">Installation adds an app icon. Background result notifications aren’t enabled yet.</p></details>`;
+ return `<details class="card install-guide"><summary>📲 Add Goodnights to your phone</summary><p>Keep your dinner crew a tap away, with the same app for organizers and family.</p>${installPrompt?'<button class="btn btn-quiet" data-act="installApp">Install Goodnights</button>':''}<p class="note"><strong>iPhone / iPad:</strong> open this site in Safari, then use Share → Add to Home Screen. Turn on Open as Web App if offered.<br><strong>Android / desktop:</strong> use your browser’s Install app or Add to Home screen option.</p><p class="note">Keep your private invitation link. If the installed app opens without your identity, open your invitation there or connect it using the link field. A family group invitation also works for that vote.</p><p class="note">Installation adds an app icon. Organizers can opt in to background alerts on each supported device under Organizer alerts; installation alone does not enable them.</p></details>`;
 }
 function selectedPeople(){return members.filter(m=>state.selectedPeople.has(m.id)&&m.active!==false)}
 function stepReady(step){return step===0?state.selected.size>=2&&state.selected.size<=20:[1].includes(step)?!state.peopleLoadError&&selectedPeople().length>=1&&selectedPeople().length<=20:['approval','swipe','ranked'].includes(state.method)}
@@ -378,7 +483,7 @@ async function repeatDinner(id){
  if(source.cuisine&&!cuisine)draft.notes.push('The previous cuisine is unavailable. Choose a cuisine or keep All cuisines.');
  family=normalizeFamily(currentFamily);members=currentMembers;
  state.selected=draft.selected;state.selectedPeople=draft.selectedPeople;state.peopleInitialised=true;state.peopleLoadError=false;
- state.meal=source.meal;state.method=source.method;state.pollCuisine=cuisine;
+ state.pollTitle=source.title||'';state.autoTie=false;state.presetId=null;state.presetName='';state.meal=source.meal;state.method=source.method;state.pollCuisine=cuisine;
  state.pollSearch='';state.pollCenter=null;state.pollRadius='';state.allowMemberHome=false;state.groupJoin=true;
  state.repeatDraft={notes:draft.notes};state.createStep=3;setPage('create');
 }
@@ -401,8 +506,16 @@ function renderCreate(){
  ${choices.length?choices.map(r=>restaurantRow(r,{select:true})).join(''):'<p>No matching places. Reset the filters or add a restaurant.</p>'}</section>`;
  if(step===1)content=`<section class="card"><h2>Who's joining?</h2><p class="subtle">Choose the people eating together. Their number sets when the vote finishes.</p>${state.peopleLoadError?'<p>Could not load your family.</p><button class="btn btn-quiet" data-act="retryCreatePeople">Retry</button>':!members.length?'<div class="empty"><h3>Add your family first</h3><button class="btn btn-primary" data-act="nav" data-page="members">Add family members</button></div>':`<div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="allPeople">Select everyone</button><button class="btn btn-line btn-sm" data-act="clearPeople">Clear</button></div><div class="people-grid">${members.filter(m=>m.active!==false).map(m=>`<label class="person-option ${state.selectedPeople.has(m.id)?'selected':''}"><input type="checkbox" data-person="${esc(m.id)}" ${state.selectedPeople.has(m.id)?'checked':''}>${memberAvatar(m)}<strong>${esc(m.name)}</strong></label>`).join('')}</div>`}<p class="note">${people.length} people selected. Invite them together or individually.</p></section>`;
  if(step===2)content=`<section class="card"><h2>How should we vote?</h2><p class="subtle">Pick a style, or practice a ballot first.</p>${[['approval','✅','Approval vote','Choose up to two favorites.'],['swipe','👍','Swipe / consensus','Yes or no to each restaurant.'],['ranked','🥇','Ranked choice','Rank your top three in order.']].map(([id,emoji,title,desc])=>`<label class="method ${state.method===id?'checked':''}"><input type="radio" name="method" value="${id}" ${state.method===id?'checked':''}><span class="methodmark">${emoji}</span><span><strong>${title}</strong><small>${desc}</small></span></label><button class="btn btn-line btn-sm practice-link" data-act="previewMode" data-method="${id}">🧪 Try ${title}</button>`).join('')}</section>`;
- if(step===3)content=`<section class="card review-hero"><div class="eyebrow">READY FOR THE FAMILY</div><h2>${esc(state.meal)} · ${methodName(state.method)}</h2>${state.repeatDraft?`<p class="note">Cuisine: ${esc(F.cuisines.find(c=>c[0]===state.pollCuisine)?.[1]||'All cuisines')} · <button class="btn btn-line btn-sm" data-act="createGo" data-step="0">Edit meal or cuisine</button></p>`:''}<p class="subtle">${state.selected.size} places · ${people.length} people</p><p class="note">Results stay hidden until these people finish, or you close the vote early.</p></section><section class="card"><div class="between"><h2>The menu</h2><button class="btn btn-line btn-sm" data-act="createGo" data-step="0">Edit places</button></div>${(family.restaurants||[]).filter(r=>state.selected.has(r.id)).map(r=>restaurantRow(r)).join('')}</section><section class="card"><div class="between"><h2>Your dinner crew</h2><button class="btn btn-line btn-sm" data-act="createGo" data-step="1">Edit people</button></div><div class="people-grid review-people">${people.map(m=>`<div class="person-option">${memberAvatar(m)}<strong>${esc(m.name)}</strong></div>`).join('')}</div><p class="note">Only these people can submit ballots. After creation, share the family group invitation or send personal links.</p><button class="btn btn-line btn-full" data-act="createGo" data-step="2">Change voting method</button></section><section class="card"><h2>Voting experience</h2><label class="setting-row"><input id="allowMemberHome" type="checkbox" ${state.allowMemberHome?'checked':''}><span><strong>Show “My votes” navigation</strong><small>Turn off to keep members on this vote and its results. This is a navigation preference, not an access restriction.</small></span></label><label class="setting-row"><input id="groupJoin" type="checkbox" ${state.groupJoin?'checked':''}><span><strong>Let the family choose their name from the group invite</strong><small>Anyone with this invitation can see invited names/photos and submit once as any invited person. Personal links stay private and are needed to edit a saved vote. Share only with your trusted family group.</small></span></label></section>`;
- layout(`<div class="wizard-flow"><div class="eyebrow">MAKE A DECISION</div><h1>${state.repeatDraft?'Use this dinner again.':'Start a vote.'}</h1>${state.repeatDraft?`<section class="card" aria-label="Dinner draft"><p>This is an editable draft. The previous vote stays unchanged. Nothing is created or shared until you choose Create vote. Voting experience starts with new-vote defaults; review the switches below.</p>${state.repeatDraft.notes.map(note=>`<p class="note">${esc(note)}</p>`).join('')}<p class="note">${state.selected.size<2?'Choose at least two current places. ':''}${people.length<1?'Choose at least one current person.':''}</p><button class="btn btn-line btn-sm" data-act="cancelRepeat">Cancel draft</button></section>`:''}<nav class="wizard-steps" aria-label="Vote creation steps">${steps.map((name,i)=>`<button class="${i===step?'active':''}" aria-current="${i===step?'step':'false'}" data-act="createGo" data-step="${i}"><span>${i+1}</span>${name}</button>`).join('')}</nav>${content}</div><div class="wizard-actions" role="region" aria-label="Vote creation actions"><div class="wizard-count" aria-live="polite"><strong>${step===0?state.selected.size+' places selected':step===1?people.length+' people selected':step===2?methodName(state.method):state.selected.size+' places · '+people.length+' people'}</strong><span>${step===0?'Choose at least two':step===1?'Choose at least one':step===2?'You can practice any style':'Next: invite everyone'}</span></div><div class="btn-row">${step>0?'<button class="btn btn-line" data-act="createBack">Back</button>':''}${step<3?`<button class="btn btn-primary" data-act="createNext" ${!stepReady(step)?'disabled':''}>Continue →</button>`:`<button class="btn btn-primary" data-act="createPoll" ${![0,1,2].every(stepReady)?'disabled':''}>Create ${esc(state.meal.toLowerCase())} vote →</button>`}</div></div>`);
+ if(step===3)content=`<section class="card review-hero"><div class="eyebrow">READY FOR THE FAMILY</div><h2>Ready for ${esc(state.meal.toLowerCase())}?</h2><p class="note">Results stay hidden until these people finish, or you close the vote early.</p>
+ <div class="review-summary"><div class="between"><div><strong>🍽️ ${esc(state.meal)}</strong><div class="item-detail">Cuisine: ${esc(F.cuisines.find(c=>c[0]===state.pollCuisine)?.[1]||'All cuisines')}</div></div><button class="btn btn-line btn-sm" data-act="createGo" data-step="0">Edit meal or cuisine</button></div>
+ <div class="between"><div><strong>${state.selected.size} places</strong><div class="item-detail">${esc((family.restaurants||[]).filter(r=>state.selected.has(r.id)).slice(0,3).map(r=>r.name).join(', '))}${state.selected.size>3?' + more':''}</div></div><button class="btn btn-line btn-sm" data-act="createGo" data-step="0">Edit places</button></div>
+ <div class="between"><div><strong>${people.length} people</strong><div class="item-detail">${esc(people.map(m=>m.name).join(', '))}</div></div><button class="btn btn-line btn-sm" data-act="createGo" data-step="1">Edit people</button></div>
+ <div class="between"><div><strong>${methodName(state.method)}</strong><div class="item-detail">${({approval:'Choose up to two favorites',swipe:'Yes or no to each place',ranked:'Rank three favorites'})[state.method]}</div></div><button class="btn btn-line btn-sm" data-act="createGo" data-step="2">Change voting method</button></div></div>
+ ${state.planning?.ready?`<div class="field"><label for="pollTitle">Give this vote a title (optional)</label><input id="pollTitle" maxlength="80" value="${esc(state.pollTitle)}" placeholder="Friday takeout"><span class="note">Visible in invitations and shared results. Leave blank for the usual dinner heading.</span></div>`:''}</section>
+ <details class="card voting-options"><summary>Voting options <span class="subtle" id="votingOptionsSummary">${state.groupJoin?'Group name picker on':'Personal links'} · automatic tie ${state.autoTie?'on':'off'}</span></summary><label class="setting-row"><input id="allowMemberHome" type="checkbox" ${state.allowMemberHome?'checked':''}><span><strong>Show “My votes” navigation</strong><small>This navigation preference does not change access permissions.</small></span></label><label class="setting-row"><input id="groupJoin" type="checkbox" ${state.groupJoin?'checked':''}><span><strong>Let the family choose their name from the group invite</strong><small>Anyone with this invitation can see invited names/photos and submit once as an invited person. Personal links stay private and are needed to edit saved votes.</small></span></label>${state.planning?.ready?`<label class="setting-row"><input id="autoTie" type="checkbox" ${state.autoTie?'checked':''}><span><strong>Automatically decide a positive tie</strong><small>When voting finishes, save one random choice among the tied leaders. No rerolls. All-no results still need a new shortlist. This choice is disclosed to voters.</small></span></label>`:''}</details>
+ ${state.planning?.ready?`<details class="card"><summary>Save these choices as a dinner preset</summary><div class="field"><label for="presetName">Preset name</label><input id="presetName" maxlength="60" value="${esc(state.presetName)}" placeholder="Quick weeknight"></div><button class="btn btn-quiet" data-act="savePreset">${state.presetId?'Update':'Save'} preset</button><p class="note">Saves only editable places, people and voting choices. Never ballots, invitations or results.</p></details>`:''}<p class="note">Next: prepare the invitation for your family chat. Nothing is sent automatically.</p>`;
+
+ layout(`<div class="wizard-flow"><div class="eyebrow">MAKE A DECISION</div><h1>${state.repeatDraft?state.presetId?'Use this dinner preset.':'Use this dinner again.':'Start a vote.'}</h1>${state.repeatDraft?`<section class="card" aria-label="Dinner draft"><p>This is an editable draft. The previous vote stays unchanged. Nothing is created or shared until you choose Create vote. Voting experience starts with new-vote defaults; review the switches below.</p>${state.repeatDraft.notes.map(note=>`<p class="note">${esc(note)}</p>`).join('')}<p class="note">${state.selected.size<2?'Choose at least two current places. ':''}${people.length<1?'Choose at least one current person.':''}</p><button class="btn btn-line btn-sm" data-act="cancelRepeat">Cancel draft</button></section>`:''}<nav class="wizard-steps" aria-label="Vote creation steps">${steps.map((name,i)=>`<button class="${i===step?'active':''}" aria-current="${i===step?'step':'false'}" data-act="createGo" data-step="${i}"><span>${i+1}</span>${name}</button>`).join('')}</nav>${content}</div><div class="wizard-actions" role="region" aria-label="Vote creation actions"><div class="wizard-count" aria-live="polite"><strong>${step===0?state.selected.size+' places selected':step===1?people.length+' people selected':step===2?methodName(state.method):state.selected.size+' places · '+people.length+' people'}</strong><span>${step===0?'Choose at least two':step===1?'Choose at least one':step===2?'You can practice any style':'Next: invite everyone'}</span></div><div class="btn-row">${step>0?'<button class="btn btn-line" data-act="createBack">Back</button>':''}${step<3?`<button class="btn btn-primary" data-act="createNext" ${!stepReady(step)?'disabled':''}>Continue →</button>`:`<button class="btn btn-primary" data-act="createPoll" ${![0,1,2].every(stepReady)?'disabled':''}>Create ${esc(state.meal.toLowerCase())} vote →</button>`}</div></div>`);
 }
 
 function renderHistory(){
@@ -425,7 +538,7 @@ function pollSharing(){
  const invited=members.filter(m=>!poll.roster_enabled||(poll.people||[]).some(p=>p.id===m.id));
  const groupText=F.groupInvite(poll,groupInviteUrl());
  const closed=poll.status==='closed',summary=closed?F.result(poll,window.GoodnightsVoting.tally(poll),resultsUrl()):'';
- return `<section class="card sharing-card"><div class="eyebrow">${closed?'📣 VOTING RESULTS':'💌 INVITE THE FAMILY'}</div><h2>${closed?'Share the results':'Invite family to this vote'}</h2><p class="note">${closed?'Group-safe results include the outcome and voting stats.':'Send each personal invitation only to that person.'} Text opens a draft; you choose when to send. Share opens your device’s app picker. If your text app omits the draft, use Copy message and paste it.</p>
+ return `<section class="card sharing-card"><div class="eyebrow">${closed?'📣 VOTING RESULTS':'💌 INVITE THE FAMILY'}</div><h2>${closed?'Share the results':state.afterCreate===poll.id?'Your vote is ready.':'Invite family to this vote'}</h2>${!closed&&state.afterCreate===poll.id?'<p class="note">Invitation prepared · you send it. Choose your family conversation, then tap Send in Messages.</p>':''}<p class="note">${closed?'Group-safe results include the outcome and voting stats.':'Send each personal invitation only to that person.'} Text opens a draft; you choose when to send. Share opens your device’s app picker. If your text app omits the draft, use Copy message and paste it.</p>
  ${!closed?`<div class="group-invite"><h3>👨‍👩‍👧‍👦 Start in your family group chat</h3><p class="note">${poll.group_join_token?'One invitation opens an avatar/name picker. Anyone with it can choose an invited person; share only in your trusted family group.':'One link uses each person’s saved identity. On a new phone, connect your personal link once. Enable the optional name picker in Voting options below.'} Choose your existing family conversation in Messages.</p><pre class="message-preview">${esc(groupText)}</pre><div class="btn-row"><a class="btn btn-primary btn-sm" href="${esc(smsUrl(null,groupText))}">💬 Text group invite</a><button class="btn btn-quiet btn-sm" data-act="shareGroupInvite">Share group invite</button><button class="btn btn-line btn-sm" data-act="copyGroupInvite">Copy group invite</button></div></div>`:''}
  ${closed?`<pre class="message-preview">${esc(summary)}</pre><div class="btn-row"><a class="btn btn-primary" href="${esc(smsUrl(null,summary))}">💬 Text results</a><button class="btn btn-quiet" data-act="shareResultsMessage">↗ Share results</button><button class="btn btn-line" data-act="copyResultsMessage">📋 Copy message</button></div>`:''}
  ${!live?'<p class="note">Sharing is available in the connected family app.</p>':state.memberLoadError?'<p>Could not load family links.</p><button class="btn btn-quiet" data-act="retryMembers">Retry</button>':poll.roster_enabled&&poll.people_error?'<p>Load participant status to see invitations.</p><button class="btn btn-quiet" data-act="refreshPeople">Retry status</button>':invited.length?invited.map(m=>`<details class="member-invite"><summary>${memberAvatar(m)}<strong>${esc(m.name)}</strong><span>${closed?'Results':'Invitation'} ✉️</span></summary><pre class="message-preview">${esc(pollMessage(m))}</pre><div class="btn-row"><a class="btn btn-primary btn-sm" href="${esc(smsUrl(m,pollMessage(m)))}">💬 Text ${esc(m.name)}</a><button class="btn btn-quiet btn-sm" data-act="shareMemberPoll" data-id="${esc(m.id)}">↗ Share message</button><button class="btn btn-line btn-sm" data-act="copyMemberMessage" data-id="${esc(m.id)}">📋 Copy message</button>${!closed?`<button class="btn btn-line btn-sm" data-act="copyMemberPoll" data-id="${esc(m.id)}">Copy link</button>`:''}</div></details>`).join(''):'<p>No members yet.</p><button class="btn btn-quiet" data-act="nav" data-page="members">Add family members</button>'}
@@ -514,7 +627,7 @@ function renderPoll(){
  const pending=poll.method==='swipe'&&Object.keys(state.swipes).length!==poll.options.length;
  const ballotProgress=poll.method==='approval'?state.approvals.size+' selected':poll.method==='swipe'?Object.keys(state.swipes).length+' of '+poll.options.length+' answered':state.rank.filter(Boolean).length+' of '+Math.min(3,poll.options.length)+' ranked';
  const ballotHint=ballotReady?'Ready when you are':poll.method==='approval'?'Choose one or two places':poll.method==='swipe'?'Answer every restaurant':'Choose a different place for each rank';
- layout(`<div class="${!already&&eligible&&voter?'ballot-flow':''}">${member&&!state.preview&&memberHomeAllowed()?'<button class="btn btn-line btn-sm" style="margin-bottom:16px" data-act="goHome">← My votes</button>':''}<div class="eyebrow">IT'S TIME TO VOTE</div><h1>${F.theme(poll)?esc(F.theme(poll).emoji+' '+F.theme(poll).title):esc(poll.meal)+' plans?'}</h1><p class="lede">${F.theme(poll)?esc(F.theme(poll).tagline)+'<br>':''}${methodName(poll.method)} · ${poll.voted_count} of ${poll.expected_voters} votes in</p>
+ layout(`<div class="${!already&&eligible&&voter?'ballot-flow':''}">${member&&!state.preview&&memberHomeAllowed()?'<button class="btn btn-line btn-sm" style="margin-bottom:16px" data-act="goHome">← My votes</button>':''}<div class="eyebrow">IT'S TIME TO VOTE</div><h1>${poll.title?esc(poll.title):F.theme(poll)?esc(F.theme(poll).emoji+' '+F.theme(poll).title):esc(poll.meal)+' plans?'}</h1><p class="lede">${F.theme(poll)?esc(F.theme(poll).tagline)+'<br>':''}${poll.auto_tie?'Positive ties use one saved automatic random draw.<br>':''}${methodName(poll.method)} · ${poll.voted_count} of ${poll.expected_voters} votes in</p>
  ${voter?memberIdentity(voter):''}<div class="card"><div class="between"><strong>Family vote</strong>${pill(poll)}</div><div class="progress"><span style="width:${100*poll.voted_count/poll.expected_voters}%"></span></div><p class="note">Your family's choices stay secret until the vote finishes.</p></div>
  ${familyToken&&!state.preview?pollSharing():''}
  ${state.editingVote?'<div class="muted-box" role="status">✏️ Editing your saved vote. Your previous choices still count until you save changes.</div>':''}
@@ -529,17 +642,17 @@ function clearResultsCard(){if(state.resultCard)URL.revokeObjectURL(state.result
 function resultCardHtml(){
  if(!familyToken)return '';
  const card=state.resultCard;
- return `<section class="card"><h2>🖼️ A little dinner announcement</h2><p class="note">Make a shareable picture with the outcome, restaurant visuals and voting stats.</p>${(poll.people||[]).some(m=>m.voted)?`<label class="setting-row"><input id="includeCardAvatars" type="checkbox" ${state.cardBusy?'disabled':''} ${state.includeCardAvatars?'checked':''}><span><strong>Include the dinner crew’s avatars and names</strong><small>Optional: these will be visible to anyone you share the picture with.</small></span></label>`:''}${card&&card.pollId===poll.id?`<img class="results-share-image" src="${card.url}" alt="Dinner results card"><div class="btn-row"><a class="btn btn-quiet" href="${card.url}" download="goodnights-results.png">⬇ Save image</a>${card.canShare?'<button class="btn btn-primary" data-act="shareResultsCard">↗ Share image</button>':''}</div><p class="note">If your messaging app shares only the image, send the results link with Copy message above.</p>`:`<button class="btn btn-quiet btn-full" data-act="prepareResultsCard" ${state.cardBusy?'disabled':''}>${state.cardBusy?'Making your card…':'✨ Make results image'}</button>`}</section>`;
+ return `<section class="card"><h2>🖼️ A little dinner announcement</h2><p class="note">Make a shareable picture with the outcome, restaurant visuals and voting stats.</p>${(poll.people||[]).some(m=>m.voted)?`<label class="setting-row"><input id="includeCardAvatars" type="checkbox" ${state.cardBusy?'disabled':''} ${state.includeCardAvatars?'checked':''}><span><strong>Include the dinner crew’s avatars and names</strong><small>Optional: these will be visible to anyone you share the picture with.</small></span></label>`:''}${state.planning?.ready?`<div class="field"><label for="resultsCaption">Family caption (optional)</label><input id="resultsCaption" maxlength="100" value="${esc(state.captionDraft||'')}" ${state.cardBusy?'disabled':''}><span class="note">Visible to anyone you share the image with. It does not change the result.</span></div><label class="setting-row"><input id="includeCaption" type="checkbox" ${state.includeCaption?'checked':''} ${state.cardBusy?'disabled':''}><span><strong>Include this caption on the image</strong></span></label><button class="btn btn-line btn-sm" data-act="saveResultsCaption">Save caption for the family</button>`:''}${card&&card.pollId===poll.id?`<img class="results-share-image" src="${card.url}" alt="Dinner results card"><div class="btn-row"><a class="btn btn-quiet" href="${card.url}" download="goodnights-results.png">⬇ Save image</a>${card.canShare?'<button class="btn btn-primary" data-act="shareResultsCard">↗ Share image</button>':''}</div><p class="note">If your messaging app shares only the image, send the results link with Copy message above.</p>`:`<button class="btn btn-quiet btn-full" data-act="prepareResultsCard" ${state.cardBusy?'disabled':''}>${state.cardBusy?'Making your card…':'✨ Make results image'}</button>`}</section>`;
 }
 function loadCardImage(src){return new Promise(resolve=>{const img=new Image();let done=false;const finish=value=>{if(done)return;done=true;clearTimeout(timer);resolve(value)};const timer=setTimeout(()=>finish(null),1800);img.crossOrigin='anonymous';img.referrerPolicy='no-referrer';img.onload=()=>finish(img);img.onerror=()=>finish(null);img.src=src})}
 async function makeResultsCard(snapshot){
  const tally=window.GoodnightsVoting.tally(snapshot),options=snapshot.options||[],winners=options.filter(r=>tally.winners.includes(r.id));
  const crew=snapshot.sharePeople||[],stats=F.highlights(snapshot,tally);
- const canvas=document.createElement('canvas');canvas.width=960;canvas.height=crew.length?1310:1160;const ctx=canvas.getContext('2d');
+ const canvas=document.createElement('canvas');canvas.width=960;canvas.height=(crew.length?1310:1160)+(snapshot.shareCaption?70:0);const ctx=canvas.getContext('2d');
  const box=(x,y,w,h,r,color)=>{ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()};
  const text=(value,x,y,size=30,color='#23221f',weight='600')=>{ctx.fillStyle=color;ctx.font=weight+' '+size+'px system-ui';ctx.fillText(value,x,y)};
  const fit=(value,size,maxWidth)=>{ctx.font='700 '+size+'px system-ui';let t=String(value);while(ctx.measureText(t).width>maxWidth&&t.length>1)t=t.slice(0,-2)+'…';return t};
- box(0,0,960,canvas.height,0,'#fdf8ee');box(42,42,876,canvas.height-84,36,'#fffefa');const brand=await loadCardImage(new URL('icons/icon-192.png',location.href).href);if(brand){ctx.drawImage(brand,84,79,42,42);text('goodnights',140,115,38)}else text('goodnights',84,115,38);text(F.theme(snapshot)?F.theme(snapshot).emoji+' '+F.theme(snapshot).title.toUpperCase():'WHAT’S FOR '+snapshot.meal.toUpperCase()+'?',84,158,19,'#ad4926');
+ box(0,0,960,canvas.height,0,'#fdf8ee');box(42,42,876,canvas.height-84,36,'#fffefa');const brand=await loadCardImage(new URL('icons/icon-192.png',location.href).href);if(brand){ctx.drawImage(brand,84,79,42,42);text('goodnights',140,115,38)}else text('goodnights',84,115,38);text(fit(snapshot.title|| (F.theme(snapshot)?F.theme(snapshot).emoji+' '+F.theme(snapshot).title.toUpperCase():'WHAT’S FOR '+snapshot.meal.toUpperCase()+'?'),19,790),84,158,19,'#ad4926');
  box(78,195,804,220,24,'#fbe7d2');text(tally.outcome==='no-choice'?'Nothing sounds good tonight':winners.length===1?'🏆 The family picked…':winners.length?'🤝 We have a tie!':'🍽️ No winner this time',110,250,27);
  text(fit(winners.length===1?winners[0].name:winners.length?winners.map(r=>r.name).join(' / '):tally.outcome==='no-choice'?'Start a new shortlist':'Try another family vote',42,720),110,322,42);
  text(snapshot.voted_count+' family ballots · '+methodName(snapshot.method),110,376,23,'#655e54');
@@ -560,7 +673,7 @@ async function makeResultsCard(snapshot){
  }else text(fit(tally.details,23,790),84,856,23,'#776b5c');
  stats.slice(0,2).forEach((s,i)=>text(fit(s.emoji+' '+s.title+' · '+s.detail,21,790),84,898+i*34,21,'#776b5c'));
  if(crew.length){
-  text(tally.outcome==='no-choice'?'🧡 The dinner crew':'🧡 Decided together',84,986,25);
+  text(winners.length!==1?'🧡 The dinner crew':'🧡 Decided together',84,986,25);
   for(const [i,m] of crew.slice(0,8).entries()){
    const x=120+i*101,y=1040,a=F.avatar(m.avatar);box(x-33,y-33,66,66,33,'#f8e9d7');
    const img=a.startsWith('data:')?await loadCardImage(a):null;
@@ -569,7 +682,8 @@ async function makeResultsCard(snapshot){
   }
   if(crew.length>8)text('+'+(crew.length-8)+' more around the table',84,1145,20,'#776b5c');
  }
- text(tally.outcome==='no-choice'?'Let’s try a new shortlist. 🧡':'Dinner, decided together. 🧡',84,canvas.height-122,27);text('Goodnights • family restaurant voting',84,canvas.height-84,18,'#776b5c');
+ if(snapshot.shareCaption){const caption=String(snapshot.shareCaption).trim().replace(/\s+/g,' ').slice(0,100);let line='',lines=[];ctx.font='600 22px system-ui';for(const ch of caption){if(ctx.measureText(line+ch).width>790){lines.push(line);line=''}line+=ch}if(line)lines.push(line);lines.slice(0,2).forEach((line,i)=>text(line,84,canvas.height-186+i*27,22,'#776b5c'))}
+ text(tally.outcome==='no-choice'?'Let’s try a new shortlist. 🧡':winners.length===1?'Dinner, decided together. 🧡':'Your family vote. 🧡',84,canvas.height-122,27);text('Goodnights • family restaurant voting',84,canvas.height-84,18,'#776b5c');
  const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Could not create the image.')),'image/png'));
  const file=new File([blob],'goodnights-results.png',{type:'image/png'});let canShare=false;try{canShare=!!navigator.canShare?.({files:[file]})}catch{}
  return {pollId:snapshot.id,url:URL.createObjectURL(blob),file,canShare};
@@ -579,7 +693,7 @@ function renderResults(){
  const all=poll.options||[],win=all.filter(o=>winners.includes(o.id));
  const maximum=Math.max(1,...Object.values(scores));
  const desc=outcome==='no-choice'?'Nothing sounds good tonight':win.length===1?esc(win[0].name):win.length>1?`It's a tie! (${win.length} places)`:'No ballots submitted';
- layout(`${member&&!state.preview?memberIdentity(member):''}<div class="eyebrow">THE FAMILY HAS SPOKEN</div><div class="card winner">${win.length?'<div class="trophy">🏆</div>':''}<div class="eyebrow">${F.theme(poll)?esc(F.theme(poll).emoji+' '+F.theme(poll).title.toUpperCase()):poll.meal.toUpperCase()} RESULTS</div>${win.length===1?`<div class="winner-place-logo">${icon(win[0].category,win[0].name,win[0])}</div>`:''}<h1>${desc}</h1><p class="subtle">${esc(details)}</p>${win.length===1&&!state.preview?`<p class="winner-address">${esc(win[0].address||'Address not saved — Maps will search by name.')}</p><a class="btn btn-dark" target="_blank" rel="noopener noreferrer" href="${esc(mapsForRestaurant(win[0]))}">📍 Open in Maps</a>`:''}</div>${outcome==='no-choice'&&familyToken&&!state.preview?'<button class="btn btn-primary" data-act="newShortlist">Start a new shortlist</button>':''}${outcome==='no-choice'&&state.preview?'<p class="note">In a real vote, the organizer can start a new shortlist.</p>':''}${peoplePanel()}${resultHighlights()}
+ layout(`${member&&!state.preview?memberIdentity(member):''}<div class="eyebrow">THE FAMILY HAS SPOKEN</div>${poll.title?`<h2>${esc(poll.title)}</h2>`:''}<div class="card winner">${win.length?'<div class="trophy">🏆</div>':''}<div class="eyebrow">${F.theme(poll)?esc(F.theme(poll).emoji+' '+F.theme(poll).title.toUpperCase()):poll.meal.toUpperCase()} RESULTS</div>${win.length===1?`<div class="winner-place-logo">${icon(win[0].category,win[0].name,win[0])}</div>`:''}<h1>${desc}</h1><p class="subtle">${esc(details)}</p>${win.length===1&&!state.preview?`<p class="winner-address">${esc(win[0].address||'Address not saved — Maps will search by name.')}</p><a class="btn btn-dark" target="_blank" rel="noopener noreferrer" href="${esc(mapsForRestaurant(win[0]))}">📍 Open in Maps</a>`:''}</div>${outcome==='no-choice'&&familyToken&&!state.preview?'<button class="btn btn-primary" data-act="newShortlist">Start a new shortlist</button>':''}${outcome==='no-choice'&&state.preview?'<p class="note">In a real vote, the organizer can start a new shortlist.</p>':''}${peoplePanel()}${resultHighlights()}
  <div class="card"><div class="between"><h2>The results</h2><span class="count">${poll.voted_count} votes</span></div>
  ${[...all].sort((a,b)=>scores[b.id]-scores[a.id]||a.name.localeCompare(b.name)).map(r=>`<div class="resultbar"><div class="bar-head"><span>${icon(r.category,r.name,r)} ${esc(r.name)}</span><span>${poll.method==='swipe'?Math.round(100*scores[r.id]/Math.max(1,poll.voted_count))+'%':poll.method==='ranked'?(r.id in (window.GoodnightsVoting.tally(poll).rounds.at(-1)||{})?scores[r.id]+' votes':'Eliminated'):scores[r.id]+' votes'}</span></div><div class="bar-track"><div class="bar-fill" style="width:${100*scores[r.id]/maximum}%"></div></div></div>`).join('')}
  <p class="note">${win.length>1?'The organizer can randomly pick a tied leader or start a runoff.':poll.method==='ranked'?'Ranked votes transfer to your next choice when a place is eliminated.':'Each voter can approve up to two places or vote yes/no as configured.'}</p></div>
@@ -592,10 +706,10 @@ async function safe(fn){try{state.busy=true;await fn()}catch(e){toast(e.message|
 function pollNeedsRefresh(value){return value.status==='open'||window.GoodnightsVoting.tally(value).winners.length>1}
 let pollSession=0;
 async function openPoll(id){
- const session=++pollSession;clearInterval(pollTimer);state.editingVote=false;state.includeCardAvatars=false;state.refreshError=false;state.deferredPollRender=false;
+ const session=++pollSession;clearInterval(pollTimer);state.editingVote=false;state.includeCardAvatars=false;state.includeCaption=false;state.refreshError=false;state.deferredPollRender=false;
  clearResultsCard();state.preview=false;state.approvals=new Set();state.swipeAnnouncement='';state.swipes={};state.swipeIndex=0;state.rank=[];poll=null;state.page='poll';history.replaceState(null,'',pollUrl(id));window.scrollTo({top:0});render();
  await safe(async()=>{
-  await loadPoll(id);if(session!==pollSession)return;
+  await loadPoll(id);if(familyToken)await loadPlanning(false);if(session!==pollSession)return;
   if(inGroup(id)&&member&&(poll.people||[]).some(m=>m.id===member.id&&m.active!==false))rememberGroupPerson();else await restoreGroupPerson();
   if(session!==pollSession)return;
   if(familyToken&&live){try{await loadMembers();state.memberLoadError=false}catch{members=[];state.memberLoadError=true}}
@@ -618,8 +732,8 @@ async function openPoll(id){
 async function refreshFamily(){if(familyToken)await loadFamily();render()}
 async function makePoll(ids,method=state.method,expected=state.expected,participantIds=null){
  const chosen=participantIds||selectedPeople().map(m=>m.id);
- const id=chosen.length?await rpc(state.pollCuisine?'gw_create_poll_themed':state.groupJoin||!state.allowMemberHome?'gw_create_poll_configured':'gw_create_poll_for_members',{p_token:familyToken,p_meal:state.meal,p_method:method,p_restaurant_ids:ids,p_member_ids:chosen,...(state.pollCuisine||state.groupJoin||!state.allowMemberHome?{p_allow_member_home:state.allowMemberHome,p_group_join:state.groupJoin}:{}),...(state.pollCuisine?{p_cuisine:state.pollCuisine}:{})}):await rpc('gw_create_poll',{p_token:familyToken,p_meal:state.meal,p_method:method,p_expected_voters:expected,p_restaurant_ids:ids});
- state.repeatDraft=null;await loadFamily();await openPoll(id);toast('Vote created! Share the voting link.');
+ const id=chosen.length&&(state.pollTitle.trim()||state.autoTie)?await rpc('gw_create_dinner',{p_token:familyToken,p_draft:{...planningDraft(ids,chosen),method}}):chosen.length?await rpc(state.pollCuisine?'gw_create_poll_themed':state.groupJoin||!state.allowMemberHome?'gw_create_poll_configured':'gw_create_poll_for_members',{p_token:familyToken,p_meal:state.meal,p_method:method,p_restaurant_ids:ids,p_member_ids:chosen,...(state.pollCuisine||state.groupJoin||!state.allowMemberHome?{p_allow_member_home:state.allowMemberHome,p_group_join:state.groupJoin}:{}),...(state.pollCuisine?{p_cuisine:state.pollCuisine}:{})}):await rpc('gw_create_poll',{p_token:familyToken,p_meal:state.meal,p_method:method,p_expected_voters:expected,p_restaurant_ids:ids});
+ state.repeatDraft=null;state.afterCreate=id;state.pollTitle='';state.autoTie=false;state.presetId=null;state.presetName='';await openPoll(id);try{await loadFamily()}catch{}toast('Vote created. Prepare the invitation, then send it in Messages.');
 }
 function voteSwipe(value){
  if(!poll||poll.method!=='swipe'||poll.status!=='open'||state.page!=='poll'||state.pendingAction)return;
@@ -679,7 +793,7 @@ async function getTown(){
  try{localStorage.setItem('gw_town_cache',JSON.stringify(townCache))}catch{}
  await findNearby(lat,lon);
 }
-const ownerActions=new Set(['createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','confirmLocation','useSavedLocation','editMatchedLocation','viewSavedLocation','newShortlist','repeatDinner','cancelRepeat','savePollSettings','deletePoll','clearHistory']);
+const ownerActions=new Set(['savePreset','usePreset','archivePreset','dismissNomination','reviewNomination','saveResultsCaption','enableAlerts','disableAlerts','tonightAction','createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','confirmLocation','useSavedLocation','editMatchedLocation','viewSavedLocation','newShortlist','repeatDinner','cancelRepeat','savePollSettings','deletePoll','clearHistory']);
 async function doAction(act,button){
  if(act==='installApp'){if(!installPrompt)return;const request=installPrompt;installPrompt=null;await request.prompt();await request.userChoice;render();return}
  if(act==='chooseGroupMember'){
@@ -742,9 +856,43 @@ async function doAction(act,button){
 
  if(ownerActions.has(act)&&!familyToken&&act!=='newFamily'){toast('Use your organizer link to manage the family.');return}
 
+ if(act==='retryPlanning'){await loadPlanning();render();return}
+ if(act==='tonightAction'){await openPoll(button.dataset.id);app.querySelector?.('.people-panel')?.scrollIntoView?.({block:'start'});return}
+ if(act==='usePreset'){await useDinnerPreset(button.dataset.id);return}
+ if(act==='savePreset'){
+  if(![0,1,2].every(stepReady))throw Error('Choose current places and people before saving a preset.');
+  state.presetId=await rpc('gw_save_dinner_preset',{p_token:familyToken,p_name:state.presetName.trim(),p_draft:planningDraft(),p_preset_id:state.presetId});
+  await loadPlanning(false);render();toast('Dinner preset saved. No vote or invitation was created.');return;
+ }
+ if(act==='archivePreset'){
+  if(!confirm('Remove this dinner preset? Existing votes stay unchanged.'))return;
+  await rpc('gw_archive_dinner_preset',{p_token:familyToken,p_preset_id:button.dataset.id});await loadPlanning();render();return;
+ }
+ if(act==='nominatePlace'){
+  if(!memberToken||familyToken||!state.planning?.can_nominate)throw Error('Use your active personal family link to suggest a place.');
+  const n=state.nominationDraft;await rpc('gw_nominate_restaurant',{p_member_token:memberToken,p_name:n.name.trim(),p_address:n.address.trim(),p_category:n.category.trim(),p_note:n.note.trim()});
+  state.nominationDraft={name:'',address:'',category:'',note:''};await loadPlanning();render();toast('Suggestion sent to the organizer for review.');return;
+ }
+ if(act==='reviewNomination'){
+  const n=(state.planning?.nominations||[]).find(n=>n.id===button.dataset.id&&n.status==='pending');if(!n)throw Error('Refresh suggestions and try again.');
+  await loadFamily();const current=(state.planning?.nominations||[]).find(x=>x.id===n.id&&x.status==='pending');if(!current)throw Error('This suggestion has already been reviewed.');
+  setPage('restaurants');reviewRestaurant({name:n.name,address:n.address,category:n.category,icon_mode:'auto'},n.id);return;
+ }
+ if(act==='dismissNomination'){
+  if(!confirm('Dismiss this suggestion without adding a restaurant?'))return;
+  await rpc('gw_review_nomination',{p_token:familyToken,p_nomination_id:button.dataset.id,p_dismiss:true});await loadPlanning();render();return;
+ }
+ if(act==='saveResultsCaption'){
+  state.captionDraft=await rpc('gw_set_results_caption',{p_token:familyToken,p_caption:state.captionDraft||''});state.captionDirty=false;await loadPlanning(false);toast('Family caption saved. Include it on a card only when you choose.');return;
+ }
+ if(act==='enableAlerts'||act==='disableAlerts'){
+  if(!window.GoodnightsAlerts)throw Error('Refresh Goodnights to load notification controls.');
+  const result=await window.GoodnightsAlerts[act==='enableAlerts'?'enable':'disable']({rpc,token:familyToken});renderKeepingFocus(button);toast(result);return;
+ }
+
  if(act==='prepareResultsCard'){
   if(!familyToken||!poll||poll.status!=='closed'||state.preview||state.cardBusy)return;
-  const snapshot={...poll,sharePeople:state.includeCardAvatars?(poll.people||[]).filter(m=>m.voted):[]};const pollId=poll.id;state.cardBusy=true;render();
+  const snapshot={...poll,shareCaption:state.includeCaption?String(state.captionDraft||'').trim().slice(0,100):'',sharePeople:state.includeCardAvatars?(poll.people||[]).filter(m=>m.voted):[]};const pollId=poll.id;state.cardBusy=true;render();
   try{const card=await makeResultsCard(snapshot);if(poll?.id!==pollId||state.preview){URL.revokeObjectURL(card.url);return}clearResultsCard();state.resultCard=card}finally{state.cardBusy=false;render()}return;
  }
  if(act==='shareResultsCard'){
@@ -770,7 +918,7 @@ startPreview(button.dataset.method);return}
 
  if(act==='newShortlist'){
   if(!familyToken||state.preview||window.GoodnightsVoting.tally(poll).outcome!=='no-choice')return;
-  state.repeatDraft=null;state.selected=new Set();state.createStep=0;state.pollSearch='';state.pollCuisine='';state.pollCenter=null;state.pollRadius='';
+  state.pollTitle='';state.autoTie=false;state.presetId=null;state.presetName='';state.repeatDraft=null;state.selected=new Set();state.createStep=0;state.pollSearch='';state.pollCuisine='';state.pollCenter=null;state.pollRadius='';
   state.meal=poll.meal;state.method='swipe';
   await loadCreatePeople();setPage('create');return;
  }
@@ -778,7 +926,7 @@ startPreview(button.dataset.method);return}
  if(act==='cancelRepeat'){
   state.repeatDraft=null;state.selected=new Set();state.selectedPeople=new Set();state.peopleInitialised=false;state.pollCuisine='';state.createStep=0;setPage('history');return;
  }
- if(act==='nav'){if(button.dataset.page==='members')await safe(loadMembers);if(button.dataset.page==='create'&&familyToken){state.repeatDraft=null;state.createStep=0;await loadCreatePeople()}setPage(button.dataset.page);return}
+ if(act==='nav'){if(button.dataset.page==='home')await loadFamily();if(button.dataset.page==='members')await safe(loadMembers);if(button.dataset.page==='create'&&familyToken){state.pollTitle='';state.autoTie=false;state.presetId=null;state.presetName='';state.repeatDraft=null;state.createStep=0;await loadCreatePeople()}setPage(button.dataset.page);return}
  if(act==='demo'){demoInit();await safe(async()=>{await loadFamily();render()});return}
  if(act==='newFamily'){
   const name=prompt('What should we call your family?','Goodnight Family');if(name===null)return;
@@ -958,7 +1106,7 @@ copy(pollUrl(poll.id));return}
  }
  if(act==='runoff'){
   const scores=window.GoodnightsVoting.tally(poll).winners;if(scores.length<2)throw Error('No runoff needed.');
-  state.meal=poll.meal;state.pollCuisine=poll.cuisine||'';const chosen=poll.roster_enabled?(poll.people||[]).filter(m=>m.active!==false).map(m=>m.id):[];if(poll.roster_enabled&&!chosen.length)throw Error('Load participant status, or start a new vote with active family members.');await safe(()=>makePoll(scores,'ranked',poll.expected_voters,chosen));return;
+  state.meal=poll.meal;state.pollCuisine=poll.cuisine||'';state.pollTitle=poll.title?poll.title+' · runoff':'';state.pollTitle=state.pollTitle.slice(0,80);state.autoTie=false;const chosen=poll.roster_enabled?(poll.people||[]).filter(m=>m.active!==false).map(m=>m.id):[];if(poll.roster_enabled&&!chosen.length)throw Error('Load participant status, or start a new vote with active family members.');await safe(()=>makePoll(scores,'ranked',poll.expected_voters,chosen));return;
  }
  if(act==='goHome'){if(state.page==='poll'&&!familyToken&&!memberHomeAllowed())return;await safe(async()=>{if(familyToken||memberToken)await loadFamily();setPage('home')});return}
 }
@@ -1009,14 +1157,21 @@ app.addEventListener('change',e=>{
  else if(t.id==='pollRadius'){state.pollRadius=t.value;renderKeepingFocus(t)}
  else if(t.id==='allowMemberHome')state.allowMemberHome=t.checked;
  else if(t.id==='groupJoin')state.groupJoin=t.checked;
+ else if(t.id==='autoTie')state.autoTie=t.checked;
+ else if(t.id==='includeCaption'){if(!familyToken)return;state.includeCaption=t.checked;clearResultsCard();render()}
  else if(t.id==='includeCardAvatars'){if(!familyToken)return;state.includeCardAvatars=t.checked;clearResultsCard();render()}
  else if(t.id==='meal')state.meal=t.value;
  else if(t.id==='voters')state.expected=Number(t.value);
+ if(['groupJoin','allowMemberHome','autoTie'].includes(t.id)){const summary=$('votingOptionsSummary');if(summary)summary.textContent=(state.groupJoin?'Group name picker on':'Personal links')+' · automatic tie '+(state.autoTie?'on':'off')}
 });
 app.addEventListener('focusout',()=>{if(state.deferredPollRender)setTimeout(()=>{if(state.deferredPollRender&&!document.activeElement?.matches?.('select,input,textarea')){state.deferredPollRender=false;render()}},0)});
 app.addEventListener('input',e=>{
  const t=e.target;if(t.id==='pollSearch'){state.pollSearch=t.value;const at=t.selectionStart;render();const field=$('pollSearch');field.focus();field.setSelectionRange(at,at)}
  else if(t.id==='restaurantSearch'){state.search=t.value;const at=t.selectionStart;render();const field=$('restaurantSearch');field.focus();field.setSelectionRange(at,at)}
+ else if(t.id==='pollTitle')state.pollTitle=t.value.slice(0,80);
+ else if(t.id==='presetName')state.presetName=t.value.slice(0,60);
+ else if(t.id==='resultsCaption'){state.captionDraft=t.value.slice(0,100);state.captionDirty=true;if(state.resultCard){const at=t.selectionStart;clearResultsCard();renderKeepingFocus(t);$('resultsCaption')?.setSelectionRange?.(at,at)}}
+ else if(t.id?.startsWith('nomination')){const key=({nominationName:'name',nominationAddress:'address',nominationCategory:'category',nominationNote:'note'})[t.id];if(key)state.nominationDraft[key]=t.value}
  else if(t.id==='city')state.city=t.value;
  else if(['localName','restName','googleName'].includes(t.id)){if(t.id==='localName')state.restaurantName=t.value;const container=$(({localName:'localSavedSuggestions',restName:'manualSavedSuggestions',googleName:'googleSavedSuggestions'})[t.id]);if(container)container.innerHTML=savedLocationSuggestions(t.value)}
  else if(t.id==='voterName')state.name=t.value;

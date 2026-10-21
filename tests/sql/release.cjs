@@ -95,5 +95,6 @@ const quote=s=>'"'+s.replaceAll('"','""')+'"';
   await c.query('reset role');
   assert.ok((await c.query("select bool_and(relrowsecurity) as enabled from pg_class where relnamespace='public'::regnamespace and relname like 'gw_%' and relkind='r'")).rows[0].enabled);
   console.log('PASS: deployed catalog reconstructed with RLS/grants, both migrations, saved historical pick, H1 fixtures, real roster/theme/member vote, all-no guard, fresh repeat IDs/group credentials/empty ballots and H4 separate locations/exact source reuse.');
+  if(process.env.GW_PLANNING_TESTS)await require('./planning-fixtures.cjs')({c,Client,connection:{host:'127.0.0.1',port,user:'postgres',password:'synthetic-only',database:'postgres'},root,fid,token,ids,member,person});
  }finally{if(c)await c.end();if(started)await cluster.stop()}
 })().catch(e=>{console.error(e);process.exit(1)});

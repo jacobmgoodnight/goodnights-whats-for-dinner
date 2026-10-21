@@ -33,7 +33,7 @@ test('organizer bulk selection, proximity filters and personal poll sharing',asy
  assert.match(app.innerHTML,/1 shown/);assert.doesNotMatch(app.innerHTML,/data-select="r22"/);
  await click('resetPollFilters');listeners.input({target:{id:'pollSearch',value:'Nearby Town',selectionStart:11}});await click('selectAll');assert.match(app.innerHTML,/2 selected/);
  await click('createNext');await click('createNext');await click('createNext');
- await click('createPoll');assert.match(app.innerHTML,/Invite family to this vote/);assert.match(app.innerHTML,/Fixture member/);
+ await click('createPoll');assert.match(app.innerHTML,/Your vote is ready/);assert.match(app.innerHTML,/Fixture member/);
  await click('copyMemberPoll',{id:'member-a'});const u=new URL(copied[0]);assert.equal(u.searchParams.get('member'),'fixture-personal');assert.equal(u.searchParams.get('poll'),'fixture-poll');assert.equal(u.searchParams.has('family'),false);
  await click('shareMemberPoll',{id:'member-a'});assert.equal(copied.length,2);
  assert.equal(calls.find(c=>c.fn==='gw_create_poll_configured').p.p_restaurant_ids.length,2);

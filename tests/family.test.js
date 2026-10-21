@@ -1,5 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),F=require('../family.js'),Voting=require('../voting.js');
 const options=[{id:'a',name:'Pizza 🍕'},{id:'b',name:'Tacos 🌮'}];
+test('custom titles appear in invitations and results, and automatic draws are disclosed before voting',()=>{
+ const poll={title:'Friday <takeout>',auto_tie:true,meal:'Dinner',method:'swipe',expected_voters:2,options,ballots:[{a:true,b:false},{a:false,b:true}],voted_count:2};
+ for(const text of [F.invite(poll,'Sam','https://example.test/?member=fixture'),F.groupInvite(poll,'https://example.test/?poll=fixture')]){assert.match(text,/Friday <takeout>/);assert.match(text,/one saved automatic random draw/)}
+ assert.match(F.result(poll,Voting.tally(poll),'https://example.test/?poll=fixture'),/Friday <takeout>/);
+});
 test('invitations explain the method and include only the supplied personal link',()=>{
  for(const method of ['approval','swipe','ranked']){const text=F.invite({method,meal:'Dinner'},'Sam','https://example.test/?member=personal&poll=vote');assert.match(text,/Sam/);assert.match(text,/personal/);assert.match(text,/🗳️/);assert.doesNotMatch(text,/undefined/)}
 });
