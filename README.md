@@ -8,6 +8,14 @@ Goodnights is a free, mobile-first family restaurant voting app. Save your go-to
 
 > **This is a family app, not an open public poll.** The hosted site requires a valid organizer or family voting invitation. You can also explore the one-browser local demo or adapt the project for your own household.
 
+## A look at voting
+
+| Swipe / consensus | Ranked choice |
+| :---: | :---: |
+| ![Illustrative swipe voting ballot with fictional restaurants](docs/qa/q1-h3/after/swipe-390.png) | ![Illustrative ranked-choice ballot with fictional restaurants](docs/qa/q1-h3/after/ranked-390.png) |
+
+*Screenshots use fictional restaurants and synthetic browser fixtures, not real family data. See the [mobile UI verification notes](docs/qa/q1-h3/README.md).*
+
 ## How it works
 
 1. **🍕 Pick some places.** Choose from saved favorites, search nearby restaurants, or start with a cuisine like pizza or Mexican.
