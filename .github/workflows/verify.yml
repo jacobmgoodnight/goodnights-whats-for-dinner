@@ -35,6 +35,7 @@ jobs:
       - name: Synthetic mobile journeys (no database credentials)
         run: |
           node tests/browser/invitations.cjs
+          node tests/browser/onboarding.cjs
           node tests/browser/ballots.cjs
           node tests/browser/release.cjs
           node tests/browser/location-saving.cjs
