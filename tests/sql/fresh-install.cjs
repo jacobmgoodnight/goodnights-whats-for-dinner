@@ -36,4 +36,4 @@ module.exports=async function isolated(check){
   console.log('PASS: empty install, repeat refusal, three methods, personal edits, completion/public privacy, group vote-once, token/role guards and RLS.');
  }finally{if(c)await c.end();if(started)await cluster.stop()}
 };
-if(require.main===module)module.exports().catch(e=>{console.error(e);process.exitCode=1});
+if(require.main===module)module.exports().catch(e=>{console.error(e);process.exit(1)});
