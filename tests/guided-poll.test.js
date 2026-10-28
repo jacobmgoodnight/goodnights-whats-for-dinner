@@ -101,7 +101,7 @@ test('members get compact voted checks and text sharing, while only organizers g
 
 
 test('fresh installed-app entry verifies a same-site personal invitation before storing identity',async()=>{
- const h=await setup({owner:false,anonymous:true,welcome:true});assert.match(h.app.innerHTML,/Already have an invitation/);h.nodes.joinToken={value:'https://elsewhere.test/?member='+'ab'.repeat(24)};await h.click('join');assert.equal(h.calls.filter(c=>c.fn==='gw_get_member').length,0);assert.equal(h.store.goodnights_member_token,undefined);
+ const h=await setup({owner:false,anonymous:true,welcome:true});assert.match(h.app.innerHTML,/Your invitation link/);assert.ok(h.app.innerHTML.indexOf('data-act="join"')<h.app.innerHTML.indexOf('data-act="newFamily"'));assert.match(h.app.innerHTML,/<details class="household-setup">/);h.nodes.joinToken={value:'https://elsewhere.test/?member='+'ab'.repeat(24)};await h.click('join');assert.equal(h.calls.filter(c=>c.fn==='gw_get_member').length,0);assert.equal(h.store.goodnights_member_token,undefined);
  h.nodes.joinToken.value='https://example.test/?member='+'ab'.repeat(24);await h.click('join');assert.equal(h.store.goodnights_member_token,'ab'.repeat(24));assert.match(h.app.innerHTML,/Your family votes/);assert.match(h.app.innerHTML,/Add Goodnights to your phone/);
 });
 test('group name preference survives new poll URLs only within the same invited family',async()=>{

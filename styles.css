@@ -121,3 +121,4 @@ main{padding:22px 20px 30px}h1{font-size:clamp(33px,7vw,52px);line-height:1.05;l
 .review-summary .btn,.tonight-card .btn,.nomination-row .btn{min-height:44px}
 .card:has([data-act="usePreset"]) .item{flex-wrap:wrap}.card:has([data-act="usePreset"]) .btn,.card:has([data-act="enableAlerts"]) .btn{min-height:44px}
 h1,h2,.card strong{overflow-wrap:anywhere}.card>.between>div{min-width:0}
+.household-setup{margin-top:20px}.household-setup summary{cursor:pointer;min-height:44px;align-content:center;font-size:14px;font-weight:750}
