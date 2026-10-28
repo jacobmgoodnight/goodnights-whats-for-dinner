@@ -16,7 +16,7 @@ jobs:
           node-version: '22'
       - run: node --test tests/*.test.js
   browser-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
