@@ -1,6 +1,6 @@
-# One-time travel polls — proposed release
+# One-time travel polls — approved release
 
-Status: **draft; production migration NOT applied**. Foundation #20 and onboarding-only #21 are merged and deployed. Quick Pick and confirmed meal history remain held on `codex/smarter-dinner-proposal-held-20261028`. This release implements the separately requested name-only poll and temporary guest flow; see [the family guide](one-time-votes.md).
+Status: **approved October 28, 2026**. The production migration is applied as `20261028231629_one_time_travel_polls`; frontend delivery is tracked in [PR #22](https://github.com/jacobmgoodnight/goodnights-whats-for-dinner/pull/22). Foundation #20 and onboarding-only #21 are merged and deployed. Quick Pick and confirmed meal history remain held on `codex/smarter-dinner-proposal-held-20261028`. This release implements the separately requested name-only poll and temporary guest flow; see [the family guide](one-time-votes.md).
 
 ## Scope and compatibility
 
@@ -11,7 +11,7 @@ Status: **draft; production migration NOT applied**. Foundation #20 and onboardi
 
 ## Exact database change and dependencies
 
-Apply only [`supabase/migrations/20261028162644_one_time_travel_polls.sql`](../supabase/migrations/20261028162644_one_time_travel_polls.sql), individually, **after explicit production approval**. Do not run `database.sql`, the empty installer, or blanket `supabase db push` on the existing project. Repository historical filenames differ from deployed migration history.
+The exact approved source is [`supabase/migrations/20261028162644_one_time_travel_polls.sql`](../supabase/migrations/20261028162644_one_time_travel_polls.sql). It is already applied to the Goodnight production project as version `20261028231629`; **do not reapply it there**. The checklist below records the release order and remains useful for separate instances. Further production database changes require explicit approval. Do not run `database.sql`, the empty installer, or blanket `supabase db push` on the existing project. Repository historical filenames differ from deployed migration history.
 
 The migration is one transaction with a five-second lock timeout. It adds `gw_polls.one_time default false`, one RLS-enabled `gw_poll_guests` table (UUID, poll ID, normalized name, display name, timestamp), and two narrowly granted token-checked functions. The unique `(poll_id,name_key)` index also covers the poll foreign key. No direct browser table grants or policies are added. New functions use an empty search path and qualified relations. Existing grants are preserved; private `gw_vote` remains inaccessible to browser roles.
 
@@ -50,6 +50,8 @@ After use begins, **keep this frontend's guest handling and the new reader/RPCs*
 Any later removal or security-grant change needs separate explicit approval and an audited plan for existing one-time polls. Never roll back by resetting family tables or reverting to an unguarded name-voting RPC. The isolated SQL suite also verifies that restoring the prior reader leaves ballots intact, but that is **not** the recommended post-use production rollback.
 
 ## Validation and remaining sign-off
+
+Production preflight matched the six reviewed deployed functions, captured the affected schema definitions in a verified Windows DPAPI encrypted recovery copy outside the public repository, and confirmed that the migration was not already applied. That recovery copy contains no family records and is not a full data backup. Post-application read-only checks verified the exact new function bodies, unchanged existing dependencies/grants/constraints/triggers, the public reader's explicit whitelist plus mode flag, RLS with no direct client table grants, and the private ballot writer's continued denial to browser roles. Hosted advisors retain the intentional guarded-RPC/no-policy-RLS pattern; no blanket permission or index changes were made. No production test polls, members, restaurants or ballots were created.
 
 CI uses a disposable PostgreSQL 17.11 service container and a pinned SQL client. The harness permits only that CI service on a fixed loopback port, or its own locally created embedded database. It accepts no external database URL or host override.
 

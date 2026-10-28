@@ -76,7 +76,7 @@ https://jacobmgoodnight.github.io/goodnights-whats-for-dinner/
 - Hosted pg_net queues are platform-readable to database roles and their grants cannot be revoked by postgres. The applied queue-privacy migration uses direct `http` only in the once/minute cron job. `pg_trigger_depth()>0` prevents network calls in ballot triggers. Never put the worker bearer or VAPID private key in net.http_request_queue.
 
 ## One-time travel polls
-- `docs/release-one-time-polls.md` defines the production approval/deployment boundary. Do not apply its proposed migration or deploy the dependent frontend without explicit migration approval.
+- `docs/release-one-time-polls.md` records the approved production migration `20261028231629_one_time_travel_polls` (source file `20261028162644_one_time_travel_polls.sql`). It is already applied; do not replay it. Preserve the explicit approval boundary for further production database or permission changes.
 - One-time guests belong only to `gw_poll_guests`, never permanent `gw_members`. Names are self-reported under a revocable poll invitation; disclose that trusted-family limitation. Do not update permanent family person preferences from a guest identity.
 - Name-only options use new inactive restaurant rows to preserve poll history without adding to the active library. Keep existing location review and historical IDs intact.
 - Reuse all three ballot validators/tallies through the private writer. Identical retries may acknowledge the same guest ballot, but guest edits remain forbidden. Creation retries reuse a per-draft request UUID; edits start a new request. No vote implies an actual meal.
