@@ -64,7 +64,7 @@ Demo data lives in that browser's local storage. **It does not synchronize votes
 
 This project is built with **GitHub Pages** for the static web app and **Supabase** for shared polls and restaurant data.
 
-1. Create your own Supabase project and review the database schema, applied migrations, and token-based access rules.
+1. Follow the [fresh-instance setup](docs/fresh-install.md) in a new, empty Supabase project, using the consolidated core installer.
 2. Set the **public** project URL and **publishable** key in `config.js` (never a secret or service-role key).
 3. Publish the static files through GitHub Pages or another static HTTPS host.
 4. Securely save the new organizer link, create family members, and distribute only the appropriate voting invitations.

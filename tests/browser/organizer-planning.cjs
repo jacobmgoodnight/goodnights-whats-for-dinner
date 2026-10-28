@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
 const {chromium}=require(process.env.GW_PLAYWRIGHT_MODULE||'playwright'),root=path.resolve(__dirname,'../..'),out=process.env.GW_PLANNING_SCREENSHOTS||path.join(os.tmpdir(),'gw-planning-screenshots');
 fs.mkdirSync(out,{recursive:true});
 (async()=>{
- const browser=await chromium.launch({channel:'msedge',headless:true});
+ const browser=await chromium.launch({channel:process.env.GW_BROWSER_CHANNEL||'msedge',headless:true});
  try{for(const width of [320,390]){
   const context=await browser.newContext({viewport:{width,height:844},hasTouch:true,isMobile:true,reducedMotion:'reduce'});
   const restaurants=[0,1,2].map(i=>({id:'place-'+i,family_id:'fixture-family',name:i<2?'Synthetic Pizza':'Synthetic Grill',address:i+' Test St',category:'Pizza',active:true,icon_mode:'builtin',icon_value:'pizza'}));

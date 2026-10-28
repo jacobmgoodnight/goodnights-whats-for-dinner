@@ -15,3 +15,27 @@ jobs:
         with:
           node-version: '22'
       - run: node --test tests/*.test.js
+  browser-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      GW_BROWSER_CHANNEL: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser tooling outside the frontend
+        run: |
+          npm install --prefix "$RUNNER_TEMP/gw-browser" --no-save --ignore-scripts playwright@1.62.1
+          "$RUNNER_TEMP/gw-browser/node_modules/.bin/playwright" install --with-deps chromium
+          echo "GW_PLAYWRIGHT_MODULE=$RUNNER_TEMP/gw-browser/node_modules/playwright" >> "$GITHUB_ENV"
+      - name: Synthetic mobile journeys (no database credentials)
+        run: |
+          node tests/browser/invitations.cjs
+          node tests/browser/ballots.cjs
+          node tests/browser/release.cjs
+          node tests/browser/location-saving.cjs
+          node tests/browser/organizer-planning.cjs

@@ -1202,8 +1202,15 @@ app.addEventListener('touchend',e=>{
 },{passive:true});
 async function init(){
  if(!live){demoInit();badge.textContent='LOCAL DEMO'}
- else if(params.get('member')){memberToken=params.get('member');familyToken='';localStorage.setItem(memberKey,memberToken);localStorage.removeItem(familyKey)}
- else if(params.get('family')){familyToken=params.get('family');memberToken='';member=null;localStorage.setItem(familyKey,familyToken);localStorage.removeItem(memberKey)}
+ else if(params.get('member')||params.get('family')){
+  // Verify incoming bearer links before replacing working access on this phone.
+  const personal=!!params.get('member'),candidate=params.get(personal?'member':'family');
+  try{
+   await rpc(personal?'gw_get_member':'gw_get_family',personal?{p_member_token:candidate}:{p_token:candidate});
+   if(personal){memberToken=candidate;familyToken='';localStorage.setItem(memberKey,candidate);localStorage.removeItem(familyKey)}
+   else{familyToken=candidate;memberToken='';member=null;localStorage.setItem(familyKey,candidate);localStorage.removeItem(memberKey)}
+  }catch{toast('Invitation could not be verified. Your saved access is unchanged. Check your connection or ask for a fresh link.')}
+ }
  else if(memberToken)familyToken='';
  if(params.get('poll')&&params.get('join')&&!params.get('member')&&!params.get('family')){const id=params.get('poll');familyToken='';memberToken='';member=null;let saved;try{saved=JSON.parse(localStorage.getItem(groupKey(id))||'null')}catch{}groupAccess={pollId:id,token:params.get('join'),memberId:saved?.token===params.get('join')?saved.memberId:null};if(groupAccess.memberId)try{member=await groupRpc('identity')}catch{groupAccess.memberId=null;localStorage.removeItem(groupKey(id))}await openPoll(id);return}
  if(params.get('poll')){if(memberToken)try{await loadFamily()}catch(e){toast(e.message)}await openPoll(params.get('poll'));return}
