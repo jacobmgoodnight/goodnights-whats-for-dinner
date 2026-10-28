@@ -16,6 +16,8 @@ The installer consolidates the core deployed catalog inspected October 28, 2026.
 
 For local verification, `tests/sql/fresh-install.cjs` starts isolated PostgreSQL with synthetic data and accepts **no database URL**. Install `embedded-postgres@17.10.0-beta.17` and `pg@8.23.1` in a disposable tooling directory, set `GW_PG_RUNTIME` to its `node_modules`, and run `node tests/sql/fresh-install.cjs`. This checks installation, repeat-install refusal, all modes, personal edits, group boundaries and grants. It does not prove hosted extension or physical-phone behavior.
 
+CI runs the same SQL fixtures in a disposable PostgreSQL 17.11 service container on a fixed loopback port, following [GitHub's service-container workflow](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers). There is no external database URL or host option.
+
 ## Recovery and troubleshooting
 
 - Connection errors: check your own URL/key and Supabase project status, then retry. Manual restaurant entry works when public OSM search is unavailable.

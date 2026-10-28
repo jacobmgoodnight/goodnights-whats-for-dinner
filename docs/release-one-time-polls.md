@@ -51,6 +51,8 @@ Any later removal or security-grant change needs separate explicit approval and 
 
 ## Validation and remaining sign-off
 
+CI uses a disposable PostgreSQL 17.11 service container and a pinned SQL client. The harness permits only that CI service on a fixed loopback port, or its own locally created embedded database. It accepts no external database URL or host override.
+
 - Node: 136 tests, including all existing voting/branding/identity behavior and new draft/escaping/invitation tests.
 - `tests/sql/one-time-polls.cjs`: isolated fresh PostgreSQL; additive data/ACL preservation; organizer, browser-role and cross-poll boundaries; all methods; public results privacy; normalized names and corrections; join/creation/vote retries; capacity and voting races; immutable positive tie draw; all-no rejection; invitation revocation/rotation; unchanged active library/members. Its harness also checks the original core install and permanent personal vote edits.
 - `tests/browser/one-time.cjs`: intercepted synthetic service, 320/390px; all methods, creation, guest naming/correction, same-phone return, shared phone, network retry, keyboard activation, all-no results and absence of personal/member/library RPC calls. CI adds this suite and a pinned disposable PostgreSQL job. No production credentials accepted by fixtures.

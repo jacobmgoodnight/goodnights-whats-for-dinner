@@ -2,10 +2,13 @@
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),net=require('node:net'),assert=require('node:assert/strict'),{pathToFileURL}=require('node:url');
 module.exports=async function isolated(check){
  const runtime=process.env.GW_PG_RUNTIME;if(!runtime)throw Error('Set GW_PG_RUNTIME to external embedded-postgres/pg node_modules');
- const Embedded=(await import(pathToFileURL(path.join(runtime,'embedded-postgres/dist/index.js')).href)).default,{Client}=require(path.join(runtime,'pg'));
- const port=await new Promise(r=>{const s=net.createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p))})});
- const cluster=new Embedded({databaseDir:fs.mkdtempSync(path.join(os.tmpdir(),'gw-fresh-')),user:'postgres',password:'synthetic-only',port,persistent:true,initdbFlags:['--encoding=UTF8','--locale=C'],postgresFlags:['-h','127.0.0.1'],onLog(){},onError(){}});let c,started=false;
- try{await cluster.initialise();await cluster.start();started=true;c=new Client({host:'127.0.0.1',port,user:'postgres',password:'synthetic-only',database:'postgres'});await c.connect();await c.query('create role anon;create role authenticated;create role service_role;');
+ const {Client}=require(path.join(runtime,'pg'));
+ // The only alternative is this job's disposable localhost service. Never accept a database URL/host override.
+ const ciService=process.env.GITHUB_ACTIONS==='true'&&process.env.GW_SQL_CI_SERVICE==='true';
+ const port=ciService?55432:await new Promise(r=>{const s=net.createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p))})});
+ const connection={host:'127.0.0.1',port,user:'postgres',password:'synthetic-only',database:'postgres'},logs=[];let cluster,c,started=false;
+ if(!ciService){const Embedded=(await import(pathToFileURL(path.join(runtime,'embedded-postgres/dist/index.js')).href)).default;cluster=new Embedded({databaseDir:fs.mkdtempSync(path.join(os.tmpdir(),'gw-fresh-')),user:'postgres',password:'synthetic-only',port,persistent:true,initdbFlags:['--encoding=UTF8','--locale=C'],postgresFlags:['-h','127.0.0.1'],onLog(message){logs.push(String(message))},onError(message){logs.push(String(message))}})}
+ try{if(cluster){try{await cluster.initialise();await cluster.start();started=true}catch(e){throw Error('Isolated PostgreSQL startup failed: '+(e?.message||logs.slice(-5).join('\n')))}}c=new Client(connection);await c.connect();if(ciService)assert.equal(Math.floor(Number((await c.query('show server_version_num')).rows[0].server_version_num)/10000),17);await c.query('create role anon;create role authenticated;create role service_role;');
   const installer=fs.readFileSync(path.join(__dirname,'../../sql/fresh-install.sql'),'utf8');await c.query(installer);
   await assert.rejects(c.query(installer),/requires an empty project/);await c.query('rollback');
   const owner='a'.repeat(48),other='b'.repeat(48),fid=(await c.query('select gw_create_family($1,$2) as data',['Synthetic family',owner])).rows[0].data.id;
@@ -32,7 +35,7 @@ module.exports=async function isolated(check){
   await assert.rejects(c.query('select gw_process_dinner_poll($1)',[id]),/permission denied/);
   await assert.rejects(c.query('select gw_get_family($1)',[other]),/not found/);await c.query('reset role');
   assert.equal((await c.query("select bool_and(relrowsecurity) as ok from pg_class where relnamespace='public'::regnamespace and relname like 'gw_%' and relkind='r'")).rows[0].ok,true);
-  if(check)await check({c,Client,connection:{host:'127.0.0.1',port,user:'postgres',password:'synthetic-only',database:'postgres'},fid,owner,person,guest,ids});
+  if(check)await check({c,Client,connection,fid,owner,person,guest,ids});
   console.log('PASS: empty install, repeat refusal, three methods, personal edits, completion/public privacy, group vote-once, token/role guards and RLS.');
  }finally{if(c)await c.end();if(started)await cluster.stop()}
 };
