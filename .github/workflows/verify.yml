@@ -42,7 +42,7 @@ jobs:
           node tests/browser/location-saving.cjs
           node tests/browser/organizer-planning.cjs
   sql-fixtures:
-    runs-on: ubuntu-24.04
+    runs-on: windows-2025
     timeout-minutes: 10
     permissions:
       contents: read
@@ -53,7 +53,7 @@ jobs:
           node-version: '22'
       - name: Install isolated PostgreSQL tooling outside the frontend
         run: |
-          npm install --prefix "$RUNNER_TEMP/gw-pg" --no-save --ignore-scripts embedded-postgres@17.10.0-beta.17 @embedded-postgres/linux-x64@17.10.0-beta.17 pg@8.23.1
-          echo "GW_PG_RUNTIME=$RUNNER_TEMP/gw-pg/node_modules" >> "$GITHUB_ENV"
+          npm install --prefix "$env:RUNNER_TEMP/gw-pg" --no-save --ignore-scripts embedded-postgres@17.10.0-beta.17 @embedded-postgres/windows-x64@17.10.0-beta.17 pg@8.23.1
+          "GW_PG_RUNTIME=$env:RUNNER_TEMP/gw-pg/node_modules" >> $env:GITHUB_ENV
       - name: Synthetic fresh install and one-time poll boundaries
         run: node tests/sql/one-time-polls.cjs
