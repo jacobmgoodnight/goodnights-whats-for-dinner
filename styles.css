@@ -122,3 +122,5 @@ main{padding:22px 20px 30px}h1{font-size:clamp(33px,7vw,52px);line-height:1.05;l
 .card:has([data-act="usePreset"]) .item{flex-wrap:wrap}.card:has([data-act="usePreset"]) .btn,.card:has([data-act="enableAlerts"]) .btn{min-height:44px}
 h1,h2,.card strong{overflow-wrap:anywhere}.card>.between>div{min-width:0}
 .household-setup{margin-top:20px}.household-setup summary{cursor:pointer;min-height:44px;align-content:center;font-size:14px;font-weight:750}
+.one-time-options{margin-bottom:16px}.one-time-options summary{min-height:44px;align-content:center;cursor:pointer;font-weight:750}.one-time-options .field{margin-top:12px}
+.field textarea{font:inherit;font-size:16px;line-height:1.5;width:100%;resize:vertical;min-height:130px;border:1px solid var(--line);background:#fff;border-radius:13px;padding:13px 14px}.field textarea:focus{border-color:var(--orange);outline:3px solid #ef9156;outline-offset:2px}

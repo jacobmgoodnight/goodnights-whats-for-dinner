@@ -3,6 +3,7 @@
 'use strict';
 const app=document.getElementById('app'), badge=document.getElementById('modeBadge');
 const cfg=window.GW_CONFIG||{}, live=!!(cfg.supabaseUrl&&cfg.publishableKey);
+const oneTimeEnabled=cfg.oneTimePolls!==false;
 const demoKey='goodnights_demo_v2', familyKey='goodnights_family_token', memberKey='goodnights_member_token';
 const sample=[
  ['Chipotle','Mexican'],['Culver’s','Burgers'],['Chick-fil-A','Chicken'],
@@ -24,15 +25,15 @@ const state={planning:null,planningError:false,tonight:null,pollTitle:'',autoTie
 let pollTimer=null,groupAccess=null;
 const groupKey=id=>'gw_group_vote_'+id;
 const lastPersonKey=id=>'gw_group_last_person_'+id;
-function rememberGroupPerson(){localStorage.setItem(groupKey(poll.id),JSON.stringify({token:groupAccess.token,memberId:member.id,familyId:poll.group_family_id}));if(poll.group_family_id)localStorage.setItem(lastPersonKey(poll.group_family_id),member.id)}
+function rememberGroupPerson(){localStorage.setItem(groupKey(poll.id),JSON.stringify({token:groupAccess.token,memberId:member.id,familyId:poll.group_family_id,oneTime:!!poll.one_time}));if(!poll.one_time&&poll.group_family_id)localStorage.setItem(lastPersonKey(poll.group_family_id),member.id)}
 async function restoreGroupPerson(){
- if(!inGroup(poll.id)||member||!poll.group_family_id||poll.people_error)return;
+ if(!inGroup(poll.id)||poll.one_time||member||!poll.group_family_id||poll.people_error)return;
  const eligible=id=>(poll.people||[]).some(m=>m.id===id&&m.active!==false);
  let id=localStorage.getItem(lastPersonKey(poll.group_family_id));
  // Upgrade older per-poll memories only when they agree on a single invited identity.
  // Shared phones with conflicting past choices get the picker instead of a guess.
  if(id==null&&typeof localStorage.key==='function'){
-  const previous=new Set();for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(!key?.startsWith('gw_group_vote_'))continue;try{const old=JSON.parse(localStorage.getItem(key));if((!old?.familyId||old.familyId===poll.group_family_id)&&eligible(old?.memberId))previous.add(old.memberId)}catch{}}
+  const previous=new Set();for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(!key?.startsWith('gw_group_vote_'))continue;try{const old=JSON.parse(localStorage.getItem(key));if(!old?.oneTime&&(!old?.familyId||old.familyId===poll.group_family_id)&&eligible(old?.memberId))previous.add(old.memberId)}catch{}}
   if(previous.size===1)id=[...previous][0];
  }
  if(!eligible(id))return;
@@ -47,7 +48,7 @@ function celebrateResults(){
  app.querySelector?.('.winner')?.classList?.add('results-arrived');celebrateVote('results');
 }
 const inGroup=id=>!!groupAccess&&groupAccess.pollId===id;
-const groupRpc=(action,extra={})=>rpc('gw_group_poll',{p_poll_id:groupAccess.pollId,p_group_token:groupAccess.token,p_member_id:groupAccess.memberId||null,p_action:action,...extra});
+const groupRpc=(action,extra={})=>rpc(groupAccess.oneTime?'gw_one_time_access':'gw_group_poll',{p_poll_id:groupAccess.pollId,p_group_token:groupAccess.token,[groupAccess.oneTime?'p_guest_id':'p_member_id']:groupAccess.memberId||null,p_action:action,...extra});
 const memberHomeAllowed=()=>!inGroup(poll?.id)&&poll?.allow_member_home!==false;
 function groupInviteUrl(){const u=new URL(resultsUrl());if(poll.group_join_token)u.searchParams.set('join',poll.group_join_token);return u.href}
 function celebrateVote(kind='vote'){
@@ -69,6 +70,7 @@ function demoInit(){
 function demoSave(){localStorage.setItem(demoKey,JSON.stringify(store))}
 function demoRpc(fn,p){
  const F=store.family;
+ if(fn==='gw_create_one_time_poll'||fn==='gw_one_time_access')return demoOneTimeRpc(fn,p);
  if(['gw_planning_home','gw_create_dinner','gw_save_dinner_preset','gw_get_dinner_preset','gw_archive_dinner_preset','gw_nominate_restaurant','gw_review_nomination','gw_set_results_caption'].includes(fn))return demoPlanningRpc(fn,p);
  if(fn==='gw_poll_settings'){
   const q=store.polls.find(q=>q.id===p.p_poll_id);if(!q||p.p_token!==F.token)throw Error('Organizer access denied');
@@ -127,7 +129,7 @@ function demoRpc(fn,p){
  if(fn==='gw_get_poll'){
    const q=store.polls.find(q=>q.id===p.p_poll_id);if(!q)throw Error('Poll is not in this browser’s demo');
    const b=Object.values(store.ballots[q.id]||{}),ready=q.status==='closed'||b.length>=q.expected_voters;
-   return {id:q.id,title:q.title||'',auto_tie:!!q.auto_tie,meal:q.meal,method:q.method,expected_voters:q.expected_voters,created_at:q.created_at,
+   return {id:q.id,one_time:!!q.one_time,roster_enabled:!!q.one_time||!!q.member_ids,title:q.title||'',auto_tie:!!q.auto_tie,meal:q.meal,method:q.method,expected_voters:q.expected_voters,created_at:q.created_at,
     tie_winner_id:q.tie_winner_id||null,cuisine:q.cuisine||'',allow_member_home:q.allow_member_home!==false,voted_count:b.length,status:ready?'closed':'open',options:q.restaurant_ids.map(id=>store.restaurants.find(x=>x.id===id)).filter(Boolean),
     ballots:ready?b.map(x=>x.ballot):null};
  }
@@ -156,6 +158,34 @@ function demoProcessDinnerPoll(id){
  const kind=result.outcome==='no-choice'?'no-choice':!snapshot.voted_count?'empty':result.winners.length>1?'tie':'decided';store.events??=[];
  const phase=kind==='decided'&&store.events.some(e=>e.poll_id===id&&e.kind==='tie')?'resolved':'completion';
  if(!store.events.some(e=>e.poll_id===id&&e.phase===phase))store.events.push({id:uid(),poll_id:id,kind,phase,title:q.title||'',created_at:new Date().toISOString()});
+}
+function demoOneTimeRpc(fn,p){
+ const owner=p.p_token===store.family.token;store.guests??={};
+ if(fn==='gw_create_one_time_poll'){
+  if(!owner)throw Error('Organizer access denied');
+  const previous=store.polls.find(q=>q.one_time&&p.p_request_id&&q.request_id===p.p_request_id);if(previous)return previous.id;
+  const d=window.GoodnightsOneTime.draft({names:p.p_place_names,expected:p.p_expected_voters,meal:p.p_meal,method:p.p_method,title:p.p_title});
+  const places=d.p_place_names.map(name=>({id:uid(),family_id:store.family.id,name,category:'',address:'',active:false,icon_mode:'builtin',icon_value:'restaurant'}));store.restaurants.push(...places);
+  const id=demoRpc('gw_create_poll',{...p,p_restaurant_ids:places.map(r=>r.id)});Object.assign(store.polls.find(q=>q.id===id),{one_time:true,request_id:p.p_request_id,title:d.p_title,roster_enabled:true,allow_member_home:false,group_join_token:token()});store.guests[id]=[];demoSave();return id;
+ }
+ const q=store.polls.find(q=>q.id===p.p_poll_id&&q.one_time),invited=!!q?.group_join_token&&q.group_join_token===p.p_group_token;
+ if(!q||!invited&&!owner)throw Error('One-time invitation unavailable');
+ const guests=store.guests[q.id]||[],ballots=store.ballots[q.id],identity=g=>({id:g.id,name:g.name,avatar:'🙂'});let g=guests.find(g=>g.id===p.p_guest_id);
+ if(p.p_action==='people')return {rostered:true,eligible:invited&&!!g,people:guests.map(g=>({...identity(g),active:true,voted:!!ballots[g.id]}))};
+ if(!invited)throw Error('Use this vote’s shared invitation to join');
+ if(p.p_action==='join'){
+  if(q.status!=='open'||Object.keys(ballots).length>=q.expected_voters)throw Error('Voting is closed');
+  const name=String(p.p_name||'').replace(/\s+/g,' ').trim();if(!name||Array.from(name).length>60)throw Error('Enter your name (up to 60 characters)');
+  const existing=guests.find(g=>g.name.toLowerCase()===name.toLowerCase());
+  if(g&&ballots[g.id]||existing&&ballots[existing.id])throw Error('That name has already voted. Use your own name; add an initial if needed');
+  if(existing&&g&&existing.id!==g.id)throw Error('That name is in use. Add an initial to your name');
+  if(existing)g=existing;else if(g)g.name=name;else{if(guests.length>=q.expected_voters)throw Error('All guest places are taken. Ask the organizer for help');g={id:uid(),name};guests.push(g)}demoSave();return identity(g);
+ }
+ if(!g)throw Error('Enter your name to join this vote');
+ if(p.p_action==='identity')return identity(g);
+ if(p.p_action==='has_voted')return !!ballots[g.id];
+ if(p.p_action==='vote'){if(ballots[g.id]){if(JSON.stringify(ballots[g.id].ballot)===JSON.stringify(p.p_ballot))return {ok:true};throw Error('This guest has already voted')}return demoRpc('gw_vote',{...p,p_voter_name:g.id})}
+ throw Error('Unsupported one-time action');
 }
 function demoPlanningRpc(fn,p){
  const owner=p.p_token===store.family.token,actor=(store.members||[]).find(m=>m.token===p.p_member_token&&m.active!==false);
@@ -206,7 +236,7 @@ const memberUrl=t=>{const u=new URL(location.href);u.search='?member='+encodeURI
 const familyUrl=()=>{const u=new URL(location.href);u.search='?family='+encodeURIComponent(familyToken);u.hash='';return u.href};
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),4000)}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('Link copied!')}catch{prompt('Copy this link:',text)}}
-const pendingLabels={savePreset:'Saving preset…',usePreset:'Opening preset…',archivePreset:'Removing preset…',nominatePlace:'Sending suggestion…',dismissNomination:'Reviewing suggestion…',saveResultsCaption:'Saving caption…',enableAlerts:'Enabling alerts…',disableAlerts:'Disabling alerts…',retryPlanning:'Refreshing…',tonightAction:'Opening vote…',confirmLocation:'Saving location…',useSavedLocation:'Using saved location…',repeatDinner:'Loading dinner draft…',join:'Connecting invitation…',chooseGroupMember:'Opening your ballot…',savePollSettings:'Saving voting options…',deletePoll:'Deleting vote…',clearHistory:'Clearing finished votes…',connectVote:'Connecting your phone…',createPoll:'Creating vote…',submitVote:'Saving your vote…',addMember:'Adding member…',saveMemberProfile:'Saving profile…',saveRestaurant:'Saving restaurant…',addManual:'Saving restaurant…',saveGoogle:'Saving restaurant…',addNearby:'Saving restaurant…',archive:'Hiding restaurant…',resetMemberLink:'Resetting link…',removeMember:'Removing member…',closePoll:'Closing vote…',randomTie:'Picking a tied winner…',runoff:'Creating runoff…',newFamily:'Creating family…',resetVote:'Loading your vote…'};
+const pendingLabels={createOneTime:'Creating one-time vote…',joinGuest:'Joining this vote…',savePreset:'Saving preset…',usePreset:'Opening preset…',archivePreset:'Removing preset…',nominatePlace:'Sending suggestion…',dismissNomination:'Reviewing suggestion…',saveResultsCaption:'Saving caption…',enableAlerts:'Enabling alerts…',disableAlerts:'Disabling alerts…',retryPlanning:'Refreshing…',tonightAction:'Opening vote…',confirmLocation:'Saving location…',useSavedLocation:'Using saved location…',repeatDinner:'Loading dinner draft…',join:'Connecting invitation…',chooseGroupMember:'Opening your ballot…',savePollSettings:'Saving voting options…',deletePoll:'Deleting vote…',clearHistory:'Clearing finished votes…',connectVote:'Connecting your phone…',createPoll:'Creating vote…',submitVote:'Saving your vote…',addMember:'Adding member…',saveMemberProfile:'Saving profile…',saveRestaurant:'Saving restaurant…',addManual:'Saving restaurant…',saveGoogle:'Saving restaurant…',addNearby:'Saving restaurant…',archive:'Hiding restaurant…',resetMemberLink:'Resetting link…',removeMember:'Removing member…',closePoll:'Closing vote…',randomTie:'Picking a tied winner…',runoff:'Creating runoff…',newFamily:'Creating family…',resetVote:'Loading your vote…'};
 const pendingControls=new Map();
 function syncPendingUI(){
  if(state.pendingAction){
@@ -264,19 +294,22 @@ async function loadFamily(){if(memberToken&&!familyToken){const m=await rpc('gw_
 async function loadMembers(){members=familyToken?await rpc('gw_list_members',{p_token:familyToken}):[]}
 async function loadPoll(id){
  const previous=poll,next=await rpc('gw_get_poll',{p_poll_id:id});
+ if(inGroup(id))groupAccess.oneTime=!!next.one_time;
  try{await loadVoterStatus(next)}catch{next.voter_error=true;next.people_error=true;if(previous?.id===id)next.voted_member_ids=previous.voted_member_ids||[]}
  await loadPeople(next);
  if(familyToken){try{Object.assign(next,await rpc('gw_poll_settings',{p_token:familyToken,p_poll_id:id}))}catch{next.settings_error=true}}
  poll=next;
 }
 async function loadVoterStatus(target){if(member&&(memberToken||inGroup(target.id)&&groupAccess.memberId)){const voted=inGroup(target.id)?await groupRpc('has_voted'):await rpc('gw_member_has_voted',{p_poll_id:target.id,p_member_token:memberToken});target.voted_member_ids=voted?[member.id]:[]}}
-function setPage(p){if(!familyToken&&['create','restaurants','members'].includes(p))p='home';state.preview=false;state.page=p;if(p!=='poll'){history.replaceState(null,'',location.pathname);clearInterval(pollTimer)}render();window.scrollTo({top:0,behavior:'instant'})}
+function setPage(p){if(p==='oneTime'&&!oneTimeEnabled)p='home';if(!familyToken&&['create','oneTime','restaurants','members'].includes(p))p='home';state.preview=false;state.page=p;if(p!=='poll'){history.replaceState(null,'',location.pathname);clearInterval(pollTimer)}render();window.scrollTo({top:0,behavior:'instant'})}
+async function openOneTimeDraft(draft={}){if(!family&&familyToken)await loadFamily();state.oneTimeDraft=draft;state.oneTimeRequest=null;setPage('oneTime')}
 function render(){
  if(state.page==='poll')return renderPoll();
  if(!family)return renderWelcome();
  if(state.page==='members')return renderMembers();
  if(state.page==='restaurants')return renderRestaurants();
  if(state.page==='create')return renderCreate();
+ if(state.page==='oneTime')return layout('<button class="btn btn-line btn-sm" data-act="nav" data-page="home">← Back to family</button>'+window.GoodnightsOneTime.form(state.oneTimeDraft),{nav:false});
  if(state.page==='history')return renderHistory();
  renderHome();
 }
@@ -310,7 +343,7 @@ function startHomeUpdates(){
 function tonightHero(){
  const q=state.tonight;if(!q||q.status!=='open')return '';
  const waiting=(q.people||[]).filter(m=>!m.voted),others=(state.planning?.active_polls||[]).filter(p=>p.id!==q.id);
- return `<section class="card hero tonight-card"><div class="eyebrow">TONIGHT · ${esc(family.name)}</div><h1>${esc(q.title||"What's the plan?")}</h1><div class="between"><strong>${esc(q.title||q.meal)} · ${methodName(q.method)}</strong>${pill(q)}</div><h2 style="margin-top:20px">${q.voted_count} of ${q.expected_voters} have voted</h2><div class="progress"><span style="width:${Math.min(100,100*q.voted_count/q.expected_voters)}%"></span></div><p class="subtle">${q.people_error?'Participant status could not be refreshed.':waiting.length?'Waiting on '+esc(waiting.map(m=>m.name+(m.active===false?' (unavailable)':'')).join(', '))+'.':'Open the vote to check who is still waiting.'}</p><button class="btn btn-primary" data-act="tonightAction" data-id="${esc(q.id)}">${waiting.some(m=>m.active!==false)?'Review reminders':'Open vote →'}</button>${others.length?`<details style="margin-top:12px"><summary>${others.length} other open vote${others.length===1?'':'s'}</summary>${others.map(p=>`<button class="btn btn-line btn-sm" data-act="openpoll" data-id="${esc(p.id)}">${esc(p.title||p.meal)} · ${p.voted_count}/${p.expected_voters}</button>`).join('')}</details>`:''}</section>`;
+ return `<section class="card hero tonight-card"><div class="eyebrow">TONIGHT · ${esc(family.name)}</div><h1>${esc(q.title||"What's the plan?")}</h1><div class="between"><strong>${esc(q.title||q.meal)} · ${methodName(q.method)}</strong>${pill(q)}</div><h2 style="margin-top:20px">${q.voted_count} of ${q.expected_voters} have voted</h2><div class="progress"><span style="width:${Math.min(100,100*q.voted_count/q.expected_voters)}%"></span></div><p class="subtle">${q.people_error?'Participant status could not be refreshed.':waiting.length?'Waiting on '+esc(waiting.map(m=>m.name+(m.active===false?' (unavailable)':'')).join(', '))+'.':'Open the vote to check who is still waiting.'}</p><button class="btn btn-primary" data-act="tonightAction" data-id="${esc(q.id)}">${!q.one_time&&waiting.some(m=>m.active!==false)?'Review reminders':'Open vote →'}</button>${others.length?`<details style="margin-top:12px"><summary>${others.length} other open vote${others.length===1?'':'s'}</summary>${others.map(p=>`<button class="btn btn-line btn-sm" data-act="openpoll" data-id="${esc(p.id)}">${esc(p.title||p.meal)} · ${p.voted_count}/${p.expected_voters}</button>`).join('')}</details>`:''}</section>`;
 }
 function planningHomeHtml(){
  const d=state.planning;
@@ -345,6 +378,7 @@ function renderHome(){
  let latest=family.polls||[];
  startHomeUpdates();
  layout(`${tonightHero()||`<div class="card hero"><div class="hero-emoji">🍔</div><div class="eyebrow">${esc(family.name)} · DINNER CLUB</div><h1>So... what's for dinner?</h1><p class="lede">Skip the debate. Pick a few places, vote together, and let dinner decide itself.</p>${familyToken?`<button class="btn btn-dark" data-act="nav" data-page="create">Start a family vote →</button>`:`<p class="subtle">Signed in as ${esc(member?.name||"family member")}</p>`}</div>`}
+ ${familyToken&&oneTimeEnabled?'<section class="card"><h3>Deciding somewhere new?</h3><p class="note">Type a few restaurant names and invite one-time guests.</p><button class="btn btn-line btn-sm" data-act="nav" data-page="oneTime">Start a one-time vote →</button></section>':''}
  ${!live?`<div class="muted-box" style="margin-bottom:15px"><strong>🧪 Local demo</strong><div>This sample works on this device only. To vote together on multiple phones, complete the Supabase + GitHub Pages setup in the README.</div></div>`:''}
  ${familyToken?`<div class="grid2"><div class="card"><span class="eyebrow">FAMILY FAVORITES</span><h2>🍽️ ${family.restaurants.length} places</h2><p class="subtle">Add restaurants once. Vote on them anytime.</p><button class="btn btn-quiet btn-sm" data-act="nav" data-page="restaurants">Manage restaurants ↗</button></div>
  <div class="card"><span class="eyebrow">INVITE FAMILY</span><h2>👨‍👩‍👧‍👦 Invite your people</h2><p class="subtle">Choose a person and copy their own voting link.</p><button class="btn btn-quiet btn-sm" data-act="nav" data-page="members">Personal invitations ↗</button></div></div>`:''}
@@ -476,6 +510,7 @@ async function repeatDinner(id){
   rpc('gw_get_poll_people',{p_poll_id:id,p_token:familyToken,p_member_token:null,p_include_avatars:false})
  ]);
  if(source.status!=='closed'&&!(source.expected_voters>0&&source.voted_count>=source.expected_voters))throw Error('Finish this vote before using it again.');
+ if(source.one_time){await openOneTimeDraft({names:source.options.map(r=>r.name).join('\n'),expected:source.expected_voters,meal:source.meal,method:source.method,title:source.title||''});return}
  if(!['Lunch','Dinner'].includes(source.meal)||!['approval','swipe','ranked'].includes(source.method))throw Error('This dinner could not be copied. Start a new vote instead.');
  const draft=repeatSelections(source.options||[],roster.rostered?roster.people||[]:[],currentFamily,currentMembers);
  if(!roster.rostered)draft.notes.push('This older vote has no saved guest list. Select the people joining this time.');
@@ -537,7 +572,9 @@ async function copyMessage(text){try{await navigator.clipboard.writeText(text);t
 function pollSharing(){
  const invited=members.filter(m=>!poll.roster_enabled||(poll.people||[]).some(p=>p.id===m.id));
  const groupText=F.groupInvite(poll,groupInviteUrl());
- const closed=poll.status==='closed',summary=closed?F.result(poll,window.GoodnightsVoting.tally(poll),resultsUrl()):'';
+ const closed=poll.status==='closed';
+ if(poll.one_time)return `<section class="card"><h2>${closed?'One-time vote finished':'Invite everyone with one link'}</h2><p class="note">${closed?'Guest access was for this vote only. Share the results below.':"Guests enter their own names and vote once. Open this invitation to cast your own ballot, too. Share only with trusted family; it reveals guest names, never your private family links or history."}</p>${!closed&&poll.group_join_token?`<pre class="message-preview">${esc(groupText)}</pre><div class="btn-row"><button class="btn btn-primary" data-act="shareGroupInvite">Share invitation</button><button class="btn btn-line" data-act="copyGroupInvite">Copy invitation</button><a class="btn btn-quiet" href="${esc(groupInviteUrl())}" target="_blank" rel="noopener noreferrer">Open invitation</a></div>`:!closed?'<p class="note">The invitation is turned off. Reenable it in Voting options to get a new link.</p>':''}</section>`;
+ const summary=closed?F.result(poll,window.GoodnightsVoting.tally(poll),resultsUrl()):'';
  return `<section class="card sharing-card"><div class="eyebrow">${closed?'📣 VOTING RESULTS':'💌 INVITE THE FAMILY'}</div><h2>${closed?'Share the results':state.afterCreate===poll.id?'Your vote is ready.':'Invite family to this vote'}</h2>${!closed&&state.afterCreate===poll.id?'<p class="note">Invitation prepared · you send it. Choose your family conversation, then tap Send in Messages.</p>':''}<p class="note">${closed?'Group-safe results include the outcome and voting stats.':'Send each personal invitation only to that person.'} Text opens a draft; you choose when to send. Share opens your device’s app picker. If your text app omits the draft, use Copy message and paste it.</p>
  ${!closed?`<div class="group-invite"><h3>👨‍👩‍👧‍👦 Start in your family group chat</h3><p class="note">${poll.group_join_token?'One invitation opens an avatar/name picker. Anyone with it can choose an invited person; share only in your trusted family group.':'One link uses each person’s saved identity. On a new phone, connect your personal link once. Enable the optional name picker in Voting options below.'} Choose your existing family conversation in Messages.</p><pre class="message-preview">${esc(groupText)}</pre><div class="btn-row"><a class="btn btn-primary btn-sm" href="${esc(smsUrl(null,groupText))}">💬 Text group invite</a><button class="btn btn-quiet btn-sm" data-act="shareGroupInvite">Share group invite</button><button class="btn btn-line btn-sm" data-act="copyGroupInvite">Copy group invite</button></div></div>`:''}
  ${closed?`<pre class="message-preview">${esc(summary)}</pre><div class="btn-row"><a class="btn btn-primary" href="${esc(smsUrl(null,summary))}">💬 Text results</a><button class="btn btn-quiet" data-act="shareResultsMessage">↗ Share results</button><button class="btn btn-line" data-act="copyResultsMessage">📋 Copy message</button></div>`:''}
@@ -548,12 +585,14 @@ function memberPollUrl(m){const u=new URL(memberUrl(m.token));u.searchParams.set
 function peoplePanel(){
  if(state.preview||(!familyToken&&!memberToken&&!inGroup(poll.id)))return '';
  if(poll.people_error)return '<section class="people-panel"><p class="note">Could not update family status.</p><button class="btn btn-line btn-sm" data-act="refreshPeople">Retry</button></section>';
- const people=poll.people||[],waiting=people.filter(m=>!m.voted),voted=people.filter(m=>m.voted),closed=poll.status==='closed';if(!people.length)return '';
+ const people=poll.people||[],waiting=people.filter(m=>!m.voted),voted=people.filter(m=>m.voted),closed=poll.status==='closed';if(!people.length&&!poll.one_time)return '';
+ const unjoined=poll.one_time?Math.max(0,poll.expected_voters-people.length):0,remaining=poll.one_time?Math.max(0,poll.expected_voters-poll.voted_count):waiting.length;
  const reminder=familyToken&&state.reminderId?members.find(m=>m.id===state.reminderId&&waiting.some(p=>p.id===m.id&&p.active!==false)):null;
  const text=reminder?F.reminder(poll,reminder.name,memberPollUrl(reminder)):'';
- const person=(m,done=false)=>`<span class="waiting-person ${done?'has-voted':''}"><span class="status-avatar">${memberAvatar(m)}${done?'<span class="voted-check" aria-label="Voted">✓</span>':''}</span><span>${esc(m.name)}${!done&&m.active===false?' · unavailable':''}</span>${familyToken&&!closed&&!done&&m.active!==false?`<button class="btn btn-line btn-sm" data-act="remindMember" data-id="${esc(m.id)}" aria-label="Remind ${esc(m.name)}">Remind</button>`:''}</span>`;
- return `<section class="people-panel ${!closed&&waiting.length&&!state.refreshError?'is-waiting':''}"><div class="between"><strong class="waiting-title">${closed?'🧡 Decided together':'Waiting on'}${!closed&&waiting.length&&!state.refreshError?'<span class="waiting-dots" aria-hidden="true"><i></i><i></i><i></i></span>':''}</strong><span class="subtle">${closed?poll.voted_count+' ballots':waiting.length+' remaining'}</span></div>
+ const person=(m,done=false)=>`<span class="waiting-person ${done?'has-voted':''}"><span class="status-avatar">${memberAvatar(m)}${done?'<span class="voted-check" aria-label="Voted">✓</span>':''}</span><span>${esc(m.name)}${!done&&m.active===false?' · unavailable':''}</span>${familyToken&&!poll.one_time&&!closed&&!done&&m.active!==false?`<button class="btn btn-line btn-sm" data-act="remindMember" data-id="${esc(m.id)}" aria-label="Remind ${esc(m.name)}">Remind</button>`:''}</span>`;
+ return `<section class="people-panel ${!closed&&waiting.length&&!state.refreshError?'is-waiting':''}"><div class="between"><strong class="waiting-title">${closed?'🧡 Decided together':'Waiting on'}${!closed&&waiting.length&&!state.refreshError?'<span class="waiting-dots" aria-hidden="true"><i></i><i></i><i></i></span>':''}</strong><span class="subtle">${closed?poll.voted_count+' ballots':remaining+' remaining'}</span></div>
  ${!closed&&waiting.length?`<div class="waiting-strip" aria-label="Waiting for votes">${waiting.map(m=>person(m)).join('')}</div>`:''}
+ ${!closed&&unjoined?`<p class="note">${unjoined} more ${unjoined===1?'guest hasn’t':'guests haven’t'} joined yet.</p>`:''}
  ${voted.length?`${!closed?'<h3 class="already-voted-title">Already voted</h3>':''}<div class="waiting-strip already-voted" aria-label="People who voted">${voted.map(m=>person(m,true)).join('')}</div>`:''}
  ${state.refreshError&&!closed?'<p class="note" role="status">Connection paused. <button class="btn btn-line btn-sm" data-act="refreshPeople">Retry</button></p>':''}
  ${reminder&&!closed?`<div class="reminder-draft"><h3>👋 A reminder for ${esc(reminder.name)}</h3><pre class="message-preview">${esc(text)}</pre><div class="btn-row"><a class="btn btn-primary btn-sm" href="${esc(smsUrl(reminder,text))}">💬 Text reminder</a><button class="btn btn-line btn-sm" data-act="shareReminder" data-id="${esc(reminder.id)}">Share</button><button class="btn btn-line btn-sm" data-act="copyReminder" data-id="${esc(reminder.id)}">Copy</button></div></div>`:''}</section>`;
@@ -561,19 +600,21 @@ function peoplePanel(){
 const peopleCache=new Map();
 async function loadPeople(target,includeAvatars=true){
  if(!familyToken&&!memberToken&&!inGroup(target.id))return;
- try{const data=inGroup(target.id)?await groupRpc('people',{p_include_avatars:includeAvatars}):await rpc('gw_get_poll_people',{p_poll_id:target.id,p_token:familyToken||null,p_member_token:memberToken||null,p_include_avatars:includeAvatars});const previous=peopleCache.get(target.id)||[];target.people=(data.people||[]).map(p=>({...p,avatar:p.avatar||previous.find(old=>old.id===p.id)?.avatar||'🙂'}));peopleCache.set(target.id,target.people);target.group_family_id=data.family_id||target.group_family_id;target.roster_enabled=!!data.rostered;target.can_vote=!!data.eligible&&!target.voter_error;target.people_error=!!target.voter_error}catch{target.people_error=true}
+ if(target.one_time&&!inGroup(target.id)&&!familyToken){target.people=[];target.can_vote=false;return}
+ try{const data=inGroup(target.id)?await groupRpc('people',{p_include_avatars:includeAvatars}):target.one_time?await rpc('gw_one_time_access',{p_poll_id:target.id,p_token:familyToken,p_action:'people'}):await rpc('gw_get_poll_people',{p_poll_id:target.id,p_token:familyToken||null,p_member_token:memberToken||null,p_include_avatars:includeAvatars});const previous=peopleCache.get(target.id)||[];target.people=(data.people||[]).map(p=>({...p,avatar:p.avatar||previous.find(old=>old.id===p.id)?.avatar||'🙂'}));peopleCache.set(target.id,target.people);target.group_family_id=data.family_id||target.group_family_id;target.roster_enabled=!!data.rostered;target.can_vote=!!data.eligible&&!target.voter_error;target.people_error=!!target.voter_error}catch{target.people_error=true}
 }
 function mapsForRestaurant(r){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([r.name,r.address].filter(Boolean).join(', '))}
 function rankDetails(i){const r=poll.options.find(r=>r.id===state.rank[i]);return r?esc(restaurantFacts(r)):'Choose a place to see its cuisine and location.'}
 function rankLogo(i){const r=poll.options.find(r=>r.id===state.rank[i]);return r?icon(r.category,r.name,r):'<span class="rank-placeholder">🍽️</span>'}
 function rankReady(){const count=Math.min(3,poll.options.length),r=state.rank.slice(0,count);return r.filter(Boolean).length===count&&new Set(r).size===count}
 function groupPicker(){
- if(poll.people_error)return '<section class="card"><h2>Could not open the family invitation</h2><p>It may have been turned off. Retry below or ask the organizer for your personal link.</p></section>';
+ if(poll.people_error)return '<section class="card"><h2>Could not open the family invitation</h2><p>It may have been turned off. Retry below or ask the organizer for a fresh invitation.</p></section>';
+ if(poll.one_time)return window.GoodnightsOneTime.guest(state.guestName||'');
  return `<section class="card"><h2>Who's voting? 👋</h2><p class="subtle">Tap your own name. This invitation is just for this vote. Already voted names are locked.</p><div class="people-grid group-picker">${(poll.people||[]).filter(m=>m.active!==false).map(m=>`<button class="person-option" data-act="chooseGroupMember" data-id="${esc(m.id)}" ${m.voted?'disabled aria-disabled="true"':''}>${memberAvatar(m)}<strong>${esc(m.name)}</strong><small>${m.voted?'✓ Already voted':'Ready to vote'}</small></button>`).join('')}</div><p class="note">Choose only yourself. A saved vote can be edited only through your private personal link.</p></section>`;
 }
 function pollSettingsHtml(){
  if(poll.settings_error)return '<p class="note">Voting options unavailable.</p><button class="btn btn-line btn-sm" data-act="refreshPeople">Retry options</button>';
- return `<details class="poll-settings"><summary>⚙️ Voting options</summary><label class="setting-row"><input id="pollAllowHome" type="checkbox" ${poll.allow_member_home!==false?'checked':''}><span><strong>Show “My votes” navigation</strong><small>A navigation preference; personal links still work.</small></span></label>${poll.roster_enabled?`<label class="setting-row"><input id="pollGroupJoin" type="checkbox" ${poll.group_join_token?'checked':''}><span><strong>Group invitation avatar/name picker</strong><small>Anyone with this invitation can see invited names/photos and submit once as any invited person. Share only with trusted family. Turning off revokes the group invitation; personal links keep working.</small></span></label>`:''}<button class="btn btn-primary btn-sm" data-act="savePollSettings">Save voting options</button></details>`;
+ return `<details class="poll-settings"><summary>⚙️ Voting options</summary>${poll.one_time?'':`<label class="setting-row"><input id="pollAllowHome" type="checkbox" ${poll.allow_member_home!==false?'checked':''}><span><strong>Show “My votes” navigation</strong><small>A navigation preference; personal links still work.</small></span></label>`}${poll.roster_enabled?`<label class="setting-row"><input id="pollGroupJoin" type="checkbox" ${poll.group_join_token?'checked':''}><span><strong>${poll.one_time?'One-time guest invitation':'Group invitation avatar/name picker'}</strong><small>${poll.one_time?'Anyone with this invitation can see guest names and submit once under a name. Share only with trusted family. Turning off revokes the invitation; reenabling creates a new link.':'Anyone with this invitation can see invited names/photos and submit once as any invited person. Share only with trusted family. Turning off revokes the group invitation; personal links keep working.'}</small></span></label>`:''}<button class="btn btn-primary btn-sm" data-act="savePollSettings">Save voting options</button></details>`;
 }
 function resultHighlights(){const highlights=F.highlights(poll,window.GoodnightsVoting.tally(poll));return highlights.length?`<div class="result-highlights">${highlights.map(s=>`<div><span aria-hidden="true">${s.emoji}</span><strong>${esc(s.title)}</strong><small>${esc(s.detail)}</small></div>`).join('')}</div>`:''}
 function captureRestaurantDrafts(){
@@ -603,9 +644,9 @@ function renderPoll(){
  let voting='';
  if(inGroup(poll.id)&&!voter){voting=groupPicker()}
  else if(!voter&&!familyToken&&!state.preview){voting='<section class="card"><h2>Connect your personal link</h2><p class="subtle">Paste the private voting link your organizer sent you once to connect this phone.</p><div class="field"><label for="personalVoteLink">Your personal voting link</label><input id="personalVoteLink" type="url" autocomplete="off" placeholder="Paste your private member link…"></div><button class="btn btn-primary btn-full" data-act="connectVote">Continue to this vote</button><p class="note">Need your link? Ask the organizer to send it individually. Personal links are never listed in the group chat.</p></section>'}
- else if(familyToken&&!state.preview){voting=`<div class="card"><h2>On the menu</h2>${poll.options.map(r=>restaurantRow(r)).join('')}<p class="note">To cast your own ballot, open your personal member link from the invitations above.</p></div>`}
+ else if(familyToken&&!state.preview){voting=`<div class="card"><h2>On the menu</h2>${poll.options.map(r=>restaurantRow(r)).join('')}<p class="note">${poll.one_time?'To cast your own ballot, open the shared invitation above and enter your name.':'To cast your own ballot, open your personal member link from the invitations above.'}</p></div>`}
 
- else if(already){voting=`<div class="card empty"><span class="empty-emoji">🎉</span><h2>You're all voted!</h2><p>Results are hidden until everyone has voted. This page updates automatically.</p>${!inGroup(poll.id)?'<button class="btn btn-quiet" data-act="resetVote">Change my vote</button><p class="note">You can update your vote until voting finishes.</p>':'<p class="note">Need to edit? Open your personal link.</p>'}</div>`}
+ else if(already){voting=`<div class="card empty"><span class="empty-emoji">🎉</span><h2>You're all voted!</h2><p>Results are hidden until everyone has voted. This page updates automatically.</p>${!inGroup(poll.id)?'<button class="btn btn-quiet" data-act="resetVote">Change my vote</button><p class="note">You can update your vote until voting finishes.</p>':poll.one_time?'<p class="note">Your one-time ballot is saved and cannot be edited. Ask the organizer if you need help.</p>':'<p class="note">Need to edit? Open your personal link.</p>'}</div>`}
  else if(voter&&!eligible){voting='<div class="card empty"><h2>'+ (poll.people_error?'Checking your invitation…':'You’re not on this vote’s guest list')+'</h2><p>'+(poll.people_error?'Retry the participant status to load your ballot.':'The organizer chose other people for this vote. You can still see the result when it finishes.')+'</p></div>'}
  else if(poll.method==='approval'){
  voting=`<div class="card"><h2>Pick up to 2</h2><p class="subtle">Which restaurants would you be happy eating?</p>${poll.options.map(r=>restaurantRow(r)).join('')}</div>`;
@@ -633,7 +674,7 @@ function renderPoll(){
  ${state.editingVote?'<div class="muted-box" role="status">✏️ Editing your saved vote. Your previous choices still count until you save changes.</div>':''}
  ${voting}
  ${peoplePanel()}
- ${inGroup(poll.id)&&member?'<button class="btn btn-line btn-sm" data-act="changeGroupMember">Not you? Choose your name</button>':''}
+ ${inGroup(poll.id)&&member?`<button class="btn btn-line btn-sm" data-act="changeGroupMember">${poll.one_time?(already?'Another guest on this phone?':'Change name'):'Not you? Choose your name'}</button>`:''}
  ${(state.preview||!familyToken)&&!already&&eligible?voter?`<section class="ballot-actions" aria-label="Your ballot actions"><div class="ballot-summary" aria-live="polite"><strong>${esc(voter.name)} · ${ballotProgress}</strong><span>${ballotHint}</span></div><div class="btn-row"><button class="btn btn-primary" data-act="submitVote" ${!ballotReady||pending?'disabled':''}>${state.editingVote?'Save vote changes ✓':'Submit my vote ✓'}</button>${state.editingVote?'<button class="btn btn-line" data-act="cancelVoteEdit">Keep my saved vote</button>':''}</div></section>`:`<div class="card"><p class="note">Use your personal family member link to submit a vote. Ask the family owner for yours.</p></div>`:''}
  ${state.preview?'':familyToken?`<div class="card"><p class="subtle">Family organizer controls</p>${pollSettingsHtml()}<div class="btn-row"><button class="btn btn-quiet btn-sm" data-act="copyPoll">Copy vote link</button><button class="btn btn-line btn-sm" data-act="closePoll">Close voting early</button></div></div>`:''}
  </div>`,{nav:false});
@@ -793,8 +834,18 @@ async function getTown(){
  try{localStorage.setItem('gw_town_cache',JSON.stringify(townCache))}catch{}
  await findNearby(lat,lon);
 }
-const ownerActions=new Set(['savePreset','usePreset','archivePreset','dismissNomination','reviewNomination','saveResultsCaption','enableAlerts','disableAlerts','tonightAction','createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','confirmLocation','useSavedLocation','editMatchedLocation','viewSavedLocation','newShortlist','repeatDinner','cancelRepeat','savePollSettings','deletePoll','clearHistory']);
+const ownerActions=new Set(['createOneTime','savePreset','usePreset','archivePreset','dismissNomination','reviewNomination','saveResultsCaption','enableAlerts','disableAlerts','tonightAction','createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','confirmLocation','useSavedLocation','editMatchedLocation','viewSavedLocation','newShortlist','repeatDinner','cancelRepeat','savePollSettings','deletePoll','clearHistory']);
 async function doAction(act,button){
+ if(act==='createOneTime'){
+  if(!familyToken)return;
+  if(!oneTimeEnabled)throw Error('New one-time votes are paused. Existing invitations still work.');
+  const d=window.GoodnightsOneTime.draft({names:$('oneTimePlaces').value,expected:$('oneTimeExpected').value,meal:$('oneTimeMeal').value,method:$('oneTimeMethod').value,title:$('oneTimeTitle').value});
+  state.oneTimeRequest??=uid();const id=await rpc('gw_create_one_time_poll',{p_token:familyToken,p_request_id:state.oneTimeRequest,...d});state.oneTimeDraft={};state.oneTimeRequest=null;await openPoll(id);toast('One-time vote ready. Share its invitation with your guests.');return;
+ }
+ if(act==='joinGuest'){
+  if(!inGroup(poll?.id)||!poll.one_time||member)return;
+  const identity=await groupRpc('join',{p_name:$('guestName').value});groupAccess.memberId=identity.id;member=identity;state.guestName='';rememberGroupPerson();await openPoll(poll.id);return;
+ }
  if(act==='installApp'){if(!installPrompt)return;const request=installPrompt;installPrompt=null;await request.prompt();await request.userChoice;render();return}
  if(act==='chooseGroupMember'){
   if(!inGroup(poll?.id)||member)return;
@@ -803,11 +854,11 @@ async function doAction(act,button){
   try{const identity=await groupRpc('identity');if(await groupRpc('has_voted'))throw Error('That person has already voted. Choose your own name.');member=identity;rememberGroupPerson();await openPoll(poll.id)}catch(e){groupAccess.memberId=previous;member=null;await loadPeople(poll);render();throw e}return;
  }
  if(act==='changeGroupMember'){
-  if(!inGroup(poll?.id))return;groupAccess.memberId=null;member=null;localStorage.removeItem(groupKey(poll.id));if(poll.group_family_id)localStorage.setItem(lastPersonKey(poll.group_family_id),'');await openPoll(poll.id);return;
+  if(!inGroup(poll?.id))return;state.guestName=poll.one_time&&!poll.voted_member_ids?.includes(member?.id)?member?.name||'':'';if(!poll.one_time||poll.voted_member_ids?.includes(member?.id))groupAccess.memberId=null;member=null;localStorage.removeItem(groupKey(poll.id));if(!poll.one_time&&poll.group_family_id)localStorage.setItem(lastPersonKey(poll.group_family_id),'');await openPoll(poll.id);return;
  }
  if(act==='savePollSettings'){
   if(!familyToken||!poll)return;
-  await rpc('gw_poll_settings',{p_token:familyToken,p_poll_id:poll.id,p_allow_member_home:!!$('pollAllowHome')?.checked,p_group_join:poll.roster_enabled?!!$('pollGroupJoin')?.checked:null});await loadPoll(poll.id);render();toast('Voting options saved. Share the updated group invitation below.');return;
+  await rpc('gw_poll_settings',{p_token:familyToken,p_poll_id:poll.id,p_allow_member_home:poll.one_time?false:!!$('pollAllowHome')?.checked,p_group_join:poll.roster_enabled?!!$('pollGroupJoin')?.checked:null});await loadPoll(poll.id);render();toast('Voting options saved. Share the updated group invitation below.');return;
  }
  if(act==='deletePoll'||act==='clearHistory'){
   if(!familyToken)return;
@@ -917,6 +968,7 @@ startPreview(button.dataset.method);return}
  }
 
  if(act==='newShortlist'){
+  if(poll?.one_time){await openOneTimeDraft({expected:poll.expected_voters,meal:poll.meal,method:'swipe',title:poll.title||''});return}
   if(!familyToken||state.preview||window.GoodnightsVoting.tally(poll).outcome!=='no-choice')return;
   state.pollTitle='';state.autoTie=false;state.presetId=null;state.presetName='';state.repeatDraft=null;state.selected=new Set();state.createStep=0;state.pollSearch='';state.pollCuisine='';state.pollCenter=null;state.pollRadius='';
   state.meal=poll.meal;state.method='swipe';
@@ -926,7 +978,7 @@ startPreview(button.dataset.method);return}
  if(act==='cancelRepeat'){
   state.repeatDraft=null;state.selected=new Set();state.selectedPeople=new Set();state.peopleInitialised=false;state.pollCuisine='';state.createStep=0;setPage('history');return;
  }
- if(act==='nav'){if(button.dataset.page==='home')await loadFamily();if(button.dataset.page==='members')await safe(loadMembers);if(button.dataset.page==='create'&&familyToken){state.pollTitle='';state.autoTie=false;state.presetId=null;state.presetName='';state.repeatDraft=null;state.createStep=0;await loadCreatePeople()}setPage(button.dataset.page);return}
+ if(act==='nav'){if(button.dataset.page==='oneTime'){await openOneTimeDraft();return}if(button.dataset.page==='home')await loadFamily();if(button.dataset.page==='members')await safe(loadMembers);if(button.dataset.page==='create'&&familyToken){state.pollTitle='';state.autoTie=false;state.presetId=null;state.presetName='';state.repeatDraft=null;state.createStep=0;await loadCreatePeople()}setPage(button.dataset.page);return}
  if(act==='demo'){demoInit();await safe(async()=>{await loadFamily();render()});return}
  if(act==='newFamily'){
   const name=prompt('What should we call your family?','Goodnight Family');if(name===null)return;
@@ -1106,6 +1158,7 @@ copy(pollUrl(poll.id));return}
  }
  if(act==='runoff'){
   const scores=window.GoodnightsVoting.tally(poll).winners;if(scores.length<2)throw Error('No runoff needed.');
+  if(poll.one_time){await openOneTimeDraft({names:poll.options.filter(r=>scores.includes(r.id)).map(r=>r.name).join('\n'),expected:poll.expected_voters,meal:poll.meal,method:'ranked',title:(poll.title?poll.title+' · runoff':'Runoff').slice(0,80)});toast('Review the runoff, then share its new invitation.');return}
   state.meal=poll.meal;state.pollCuisine=poll.cuisine||'';state.pollTitle=poll.title?poll.title+' · runoff':'';state.pollTitle=state.pollTitle.slice(0,80);state.autoTie=false;const chosen=poll.roster_enabled?(poll.people||[]).filter(m=>m.active!==false).map(m=>m.id):[];if(poll.roster_enabled&&!chosen.length)throw Error('Load participant status, or start a new vote with active family members.');await safe(()=>makePoll(scores,'ranked',poll.expected_voters,chosen));return;
  }
  if(act==='goHome'){if(state.page==='poll'&&!familyToken&&!memberHomeAllowed())return;await safe(async()=>{if(familyToken||memberToken)await loadFamily();setPage('home')});return}
@@ -1175,6 +1228,8 @@ app.addEventListener('input',e=>{
  else if(t.id==='city')state.city=t.value;
  else if(['localName','restName','googleName'].includes(t.id)){if(t.id==='localName')state.restaurantName=t.value;const container=$(({localName:'localSavedSuggestions',restName:'manualSavedSuggestions',googleName:'googleSavedSuggestions'})[t.id]);if(container)container.innerHTML=savedLocationSuggestions(t.value)}
  else if(t.id==='voterName')state.name=t.value;
+ else if(t.id==='guestName')state.guestName=t.value;
+ else if(t.id?.startsWith('oneTime')){state.oneTimeRequest=null;state.oneTimeDraft??={};const key=({oneTimePlaces:'names',oneTimeExpected:'expected',oneTimeMethod:'method',oneTimeMeal:'meal',oneTimeTitle:'title'})[t.id];if(key)state.oneTimeDraft[key]=t.value}
 });
 let swipeTouch=null;
 app.addEventListener('touchstart',e=>{
@@ -1212,7 +1267,7 @@ async function init(){
   }catch{toast('Invitation could not be verified. Your saved access is unchanged. Check your connection or ask for a fresh link.')}
  }
  else if(memberToken)familyToken='';
- if(params.get('poll')&&params.get('join')&&!params.get('member')&&!params.get('family')){const id=params.get('poll');familyToken='';memberToken='';member=null;let saved;try{saved=JSON.parse(localStorage.getItem(groupKey(id))||'null')}catch{}groupAccess={pollId:id,token:params.get('join'),memberId:saved?.token===params.get('join')?saved.memberId:null};if(groupAccess.memberId)try{member=await groupRpc('identity')}catch{groupAccess.memberId=null;localStorage.removeItem(groupKey(id))}await openPoll(id);return}
+ if(params.get('poll')&&params.get('join')&&!params.get('member')&&!params.get('family')){const id=params.get('poll');familyToken='';memberToken='';member=null;let saved;try{saved=JSON.parse(localStorage.getItem(groupKey(id))||'null')}catch{}groupAccess={pollId:id,token:params.get('join'),memberId:saved?.token===params.get('join')?saved.memberId:null,oneTime:saved?.token===params.get('join')&&!!saved.oneTime};if(groupAccess.memberId)try{member=await groupRpc('identity')}catch{groupAccess.memberId=null;localStorage.removeItem(groupKey(id))}await openPoll(id);return}
  if(params.get('poll')){if(memberToken)try{await loadFamily()}catch(e){toast(e.message)}await openPoll(params.get('poll'));return}
  try{await loadFamily();render()}catch(e){toast(e.message);family=null;renderWelcome()}
 }

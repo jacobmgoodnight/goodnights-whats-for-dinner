@@ -36,7 +36,39 @@ jobs:
         run: |
           node tests/browser/invitations.cjs
           node tests/browser/onboarding.cjs
+          node tests/browser/one-time.cjs
           node tests/browser/ballots.cjs
           node tests/browser/release.cjs
           node tests/browser/location-saving.cjs
           node tests/browser/organizer-planning.cjs
+  sql-fixtures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      GW_SQL_CI_SERVICE: 'true'
+    services:
+      postgres:
+        image: postgres:17.11-bookworm
+        env:
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+        ports:
+          - '127.0.0.1:55432:5432'
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned SQL client outside the frontend
+        run: |
+          npm install --prefix "$RUNNER_TEMP/gw-pg" --no-save --ignore-scripts pg@8.23.1
+          echo "GW_PG_RUNTIME=$RUNNER_TEMP/gw-pg/node_modules" >> "$GITHUB_ENV"
+      - name: Synthetic fresh install and one-time poll boundaries
+        run: node tests/sql/one-time-polls.cjs

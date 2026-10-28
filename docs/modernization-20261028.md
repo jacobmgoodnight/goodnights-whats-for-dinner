@@ -1,6 +1,6 @@
 # Product and engineering review — October 28, 2026
 
-> Scope update: foundation PR #20 is merged and deployed. PR #21 is narrowed to invitation-first onboarding only. Quick Pick and meal history remain on hold, with their proposal preserved on `codex/smarter-dinner-proposal-held-20261028`. The roadmap below records the original audit; a requested one-time travel poll with temporary guest names is being evaluated separately.
+> Scope update: foundation PR #20 is merged and deployed. PR #21 is merged and deployed with invitation-first onboarding only. Quick Pick and meal history remain on hold, with their proposal preserved on `codex/smarter-dinner-proposal-held-20261028`. The roadmap below records the original audit; the requested one-time travel poll with temporary guest names is approved in PR #22, with production migration `20261028231629` applied; see [its release record](release-one-time-polls.md).
 
 ## Current state and evidence
 
