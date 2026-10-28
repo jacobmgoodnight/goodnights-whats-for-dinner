@@ -31,6 +31,7 @@ No voter accounts or paid subscriptions required.
 - **Your restaurant shortlist:** save favorites, search OpenStreetMap, or add places manually—including name/address details copied from Google Maps.
 - **Quick dinner themes:** filter saved restaurants for pizza night, Mexican night, and other cuisines; optionally pick five places for a shortlist.
 - **Designed for real family groups:** member profiles and avatars, individual reusable links, optional poll-specific group name/avatar selection, and a live “Waiting on…” view.
+- **One-time travel votes:** type restaurant names without addresses and let temporary guests enter their own names. [How to use it](docs/one-time-votes.md). Requires the reviewed one-time migration on your instance.
 - **Flexible planning:** review places, participants, and voting rules before starting; reuse a finished dinner as a fresh draft or save organizer presets.
 - **Clear results:** restaurant logos or food icons, address and map links, vote summaries, shareable results, and optional organizer-created announcement images.
 - **Thoughtful tie handling:** runoffs and one-time random tiebreakers for genuine positive ties. A consensus vote with zero yes responses shows that nobody liked the options instead of inventing a winner.

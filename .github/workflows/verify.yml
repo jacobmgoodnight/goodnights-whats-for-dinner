@@ -36,7 +36,24 @@ jobs:
         run: |
           node tests/browser/invitations.cjs
           node tests/browser/onboarding.cjs
+          node tests/browser/one-time.cjs
           node tests/browser/ballots.cjs
           node tests/browser/release.cjs
           node tests/browser/location-saving.cjs
           node tests/browser/organizer-planning.cjs
+  sql-fixtures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated PostgreSQL tooling outside the frontend
+        run: |
+          npm install --prefix "$RUNNER_TEMP/gw-pg" --no-save --ignore-scripts embedded-postgres@17.10.0-beta.17 @embedded-postgres/linux-x64@17.10.0-beta.17 pg@8.23.1
+          echo "GW_PG_RUNTIME=$RUNNER_TEMP/gw-pg/node_modules" >> "$GITHUB_ENV"
+      - name: Synthetic fresh install and one-time poll boundaries
+        run: node tests/sql/one-time-polls.cjs
