@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chromium}=require(process.env.GW_PLAYWRIGHT_MODULE||'playwright'),root=path.resolve(__dirname,'../..');
 (async()=>{
- const browser=await chromium.launch({channel:'msedge',headless:true});
+ const browser=await chromium.launch({channel:process.env.GW_BROWSER_CHANNEL||'msedge',headless:true});
  try{
   const context=await browser.newContext({viewport:{width:320,height:844},hasTouch:true,isMobile:true});
   const fixture={family:{id:'fixture-family',name:'Fixture',token:'synthetic-owner'},members:[],polls:[],ballots:{},restaurants:[1,2].map(i=>({id:'fixture-'+i,family_id:'fixture-family',name:'Chain',category:'Pizza',address:i+' Oak St',active:true,osm_id:i===1?'node/1':null,latitude:i===1?40:null,longitude:i===1?-86:null,icon_mode:'builtin',icon_value:'pizza'}))};
