@@ -6,6 +6,8 @@ The browser publishable key is public. RLS with no policies and revoked direct g
 
 Public poll IDs intentionally reveal restaurant options/addresses and, after completion, anonymous ballot arrays. Small groups can infer choices; this is not secret-ballot voting. Public results do not list people, contacts, personal tokens, meal history or family preferences. Public poll titles must contain no sensitive information. Owner-generated results pictures include people only after explicit opt-in.
 
+Confirmed meal history is visible only to the organizer or active personal members of that household. Only the organizer can record, correct or delete meals. Group poll invitations and public results cannot read it. The meal migration adds these guarded RPCs without changing existing permissions or poll readers.
+
 Member links can be reset or removed in Members; group access can be revoked and rotated in voting options. Organizer recovery/rotation currently requires a reviewed administrator procedure and coordinated device/subscription updates; no self-service organizer rotation exists. Never rotate production credentials during testing. Browser storage and copied URLs remain bearer credentials; no-referrer protects outbound requests but cannot erase browser history, screenshots or forwarded messages.
 
 External owner-selected logos expose visitor IPs to their image hosts. HTTPS validation, escaped markup, no-referrer requests and SVG fallbacks are retained. OSM lookups are optional, user initiated and can be unavailable. There is no offline ballot queue, paid messaging, public identity verification, or general IP-based rate limiter. Existing resource caps and serialized submissions limit some abuse; unguessable tokens do not protect a leaked link.

@@ -28,6 +28,8 @@ No voter accounts or paid subscriptions required.
 ## Highlights
 
 - **Three ways to vote:** approval, swipe-style yes/no consensus, and ranked-choice voting.
+- **Quick Pick:** get an explained restaurant suggestion without organizing a poll, filter cuisine, and see alternatives without repeats in the current round.
+- **Confirmed meals:** explicitly record where you ate and the local date, correct mistakes, and gently rotate away from recently visited places. Winning a vote never records a meal automatically. The reviewed meal migration must be applied before deploying this release.
 - **Your restaurant shortlist:** save favorites, search OpenStreetMap, or add places manually—including name/address details copied from Google Maps.
 - **Quick dinner themes:** filter saved restaurants for pizza night, Mexican night, and other cuisines; optionally pick five places for a shortlist.
 - **Designed for real family groups:** member profiles and avatars, individual reusable links, optional poll-specific group name/avatar selection, and a live “Waiting on…” view.

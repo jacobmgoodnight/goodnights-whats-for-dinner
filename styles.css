@@ -121,3 +121,9 @@ main{padding:22px 20px 30px}h1{font-size:clamp(33px,7vw,52px);line-height:1.05;l
 .review-summary .btn,.tonight-card .btn,.nomination-row .btn{min-height:44px}
 .card:has([data-act="usePreset"]) .item{flex-wrap:wrap}.card:has([data-act="usePreset"]) .btn,.card:has([data-act="enableAlerts"]) .btn{min-height:44px}
 h1,h2,.card strong{overflow-wrap:anywhere}.card>.between>div{min-width:0}
+/* Simple dinner decisions retain the existing palette and native controls. */
+.dinner-links{margin:12px 0 20px}.quick-choice .foodicon{margin-bottom:12px}
+.quick-choice .btn-row,.meal-row{flex-wrap:wrap}.meal-row .item-body{flex:1 1 140px}
+.quick-choice a{text-decoration:none}.quick-filters select,#mealPlace,#mealDate{font-size:16px;min-height:46px;max-width:100%}
+.quick-choice .btn,.meal-row .btn,.dinner-links .btn{min-height:44px}
+.quick-back{margin-bottom:16px}.quick-filters summary{min-height:44px;align-content:center;font-weight:800;cursor:pointer}.quick-filters[open] summary{margin-bottom:12px}
