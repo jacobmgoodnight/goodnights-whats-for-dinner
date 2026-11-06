@@ -2,7 +2,7 @@
 
 **Stop debating what's for dinner. Let everyone vote.**
 
-Goodnights is a free, mobile-first family restaurant voting app. Save your go-to places, invite the people eating with you, and settle lunch or dinner plans with a quick vote—not a long group-chat debate.
+Goodnights is a free, mobile-first family restaurant voting app. Save favorite places, invite the people eating with you, and decide on lunch or dinner with swipe-style consensus, approval, or ranked-choice voting—not a long group-chat debate.
 
 **[Open the family app](https://jacobmgoodnight.github.io/goodnights-whats-for-dinner/)** · [How it works](#how-it-works) · [Voting methods](#choose-how-to-vote) · [Setup & development](#run-it-yourself)
 
