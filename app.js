@@ -18,10 +18,11 @@ const params=new URL(location.href).searchParams;
 const icon=(category='',name='',restaurant)=>window.GoodnightsLogos.render(restaurant||{name,category});
 let store, familyToken=localStorage.getItem(familyKey)||'',memberToken=localStorage.getItem(memberKey)||'',member=null,members=[],family=null,poll=null;
 const F=window.GoodnightsFamily;
+const D=window.GoodnightsDecisions;
 const state={planning:null,planningError:false,tonight:null,pollTitle:'',autoTie:false,presetId:null,presetName:'',nominationDraft:{name:'',address:'',category:'',note:''},captionDraft:null,captionDirty:false,includeCaption:false,afterCreate:null,repeatDraft:null,restaurantReview:null,allowMemberHome:false,groupJoin:true,includeCardAvatars:false,refreshError:false,deferredPollRender:false,createStep:0,selectedPeople:new Set(),peopleInitialised:false,peopleLoadError:false,reminderId:null,discoverOpen:false,restaurantDrafts:{},renderedPage:null,renderedEditingId:null,skipDraftCapture:false,editingVote:false,pendingAction:null,resultCard:null,cardBusy:false,preview:false,editingMember:null,avatarDraft:'🙂',photoBusy:false,page:'home',selected:new Set(),meal:'Dinner',method:'approval',expected:4,
  name:localStorage.getItem('gw_name')||'',approvals:new Set(),swipes:{},swipeIndex:0,rank:[],
  pollSearch:'',pollCuisine:'',pollCenter:null,pollRadius:'',memberLoadError:false,search:'',nearby:[],nearbyBusy:false,center:null,city:'New Palestine, Indiana',restaurantName:'',nearbyQuery:'',
- adding:false,showNearby:false,busy:false,notice:'',editingId:null};
+ adding:false,showNearby:false,busy:false,notice:'',editingId:null,quick:{cuisine:'',start:0,size:1}};
 let pollTimer=null,groupAccess=null;
 const groupKey=id=>'gw_group_vote_'+id;
 const lastPersonKey=id=>'gw_group_last_person_'+id;
@@ -236,7 +237,7 @@ const memberUrl=t=>{const u=new URL(location.href);u.search='?member='+encodeURI
 const familyUrl=()=>{const u=new URL(location.href);u.search='?family='+encodeURIComponent(familyToken);u.hash='';return u.href};
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),4000)}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('Link copied!')}catch{prompt('Copy this link:',text)}}
-const pendingLabels={createOneTime:'Creating one-time vote…',joinGuest:'Joining this vote…',savePreset:'Saving preset…',usePreset:'Opening preset…',archivePreset:'Removing preset…',nominatePlace:'Sending suggestion…',dismissNomination:'Reviewing suggestion…',saveResultsCaption:'Saving caption…',enableAlerts:'Enabling alerts…',disableAlerts:'Disabling alerts…',retryPlanning:'Refreshing…',tonightAction:'Opening vote…',confirmLocation:'Saving location…',useSavedLocation:'Using saved location…',repeatDinner:'Loading dinner draft…',join:'Connecting invitation…',chooseGroupMember:'Opening your ballot…',savePollSettings:'Saving voting options…',deletePoll:'Deleting vote…',clearHistory:'Clearing finished votes…',connectVote:'Connecting your phone…',createPoll:'Creating vote…',submitVote:'Saving your vote…',addMember:'Adding member…',saveMemberProfile:'Saving profile…',saveRestaurant:'Saving restaurant…',addManual:'Saving restaurant…',saveGoogle:'Saving restaurant…',addNearby:'Saving restaurant…',archive:'Hiding restaurant…',resetMemberLink:'Resetting link…',removeMember:'Removing member…',closePoll:'Closing vote…',randomTie:'Picking a tied winner…',runoff:'Creating runoff…',newFamily:'Creating family…',resetVote:'Loading your vote…'};
+const pendingLabels={quickVote:'Opening vote setup…',createOneTime:'Creating one-time vote…',joinGuest:'Joining this vote…',savePreset:'Saving preset…',usePreset:'Opening preset…',archivePreset:'Removing preset…',nominatePlace:'Sending suggestion…',dismissNomination:'Reviewing suggestion…',saveResultsCaption:'Saving caption…',enableAlerts:'Enabling alerts…',disableAlerts:'Disabling alerts…',retryPlanning:'Refreshing…',tonightAction:'Opening vote…',confirmLocation:'Saving location…',useSavedLocation:'Using saved location…',repeatDinner:'Loading dinner draft…',join:'Connecting invitation…',chooseGroupMember:'Opening your ballot…',savePollSettings:'Saving voting options…',deletePoll:'Deleting vote…',clearHistory:'Clearing finished votes…',connectVote:'Connecting your phone…',createPoll:'Creating vote…',submitVote:'Saving your vote…',addMember:'Adding member…',saveMemberProfile:'Saving profile…',saveRestaurant:'Saving restaurant…',addManual:'Saving restaurant…',saveGoogle:'Saving restaurant…',addNearby:'Saving restaurant…',archive:'Hiding restaurant…',resetMemberLink:'Resetting link…',removeMember:'Removing member…',closePoll:'Closing vote…',randomTie:'Picking a tied winner…',runoff:'Creating runoff…',newFamily:'Creating family…',resetVote:'Loading your vote…'};
 const pendingControls=new Map();
 function syncPendingUI(){
  if(state.pendingAction){
@@ -311,7 +312,31 @@ function render(){
  if(state.page==='create')return renderCreate();
  if(state.page==='oneTime')return layout('<button class="btn btn-line btn-sm" data-act="nav" data-page="home">← Back to family</button>'+window.GoodnightsOneTime.form(state.oneTimeDraft),{nav:false});
  if(state.page==='history')return renderHistory();
+ if(state.page==='quick')return renderQuick();
  renderHome();
+}
+// Quick Pick: one saved place, no poll and no writes. Organizers can turn the options on screen into a normal vote draft.
+function quickAll(){return (family?.restaurants||[]).filter(r=>r.active!==false)}
+function quickResult(){const q=state.quick;return D.suggest(quickAll().filter(r=>F.matchesCuisine(r,q.cuisine)),{start:q.start,size:q.size})}
+function renderQuick(){
+ const q=state.quick,all=quickAll(),counts=F.cuisines.map(([id,label])=>({id,label,count:all.filter(r=>F.matchesCuisine(r,id)).length})).filter(c=>c.count||c.id===q.cuisine);
+ layout(`<button class="btn btn-line btn-sm quick-back" data-act="nav" data-page="home">← Home</button><div class="eyebrow">QUICK PICK · NO VOTE NEEDED</div><h1>Let’s eat here.</h1><p class="lede">One suggestion from your saved places. Not feeling it? Try another.</p>
+ ${all.length?`<div class="field quick-filter"><label for="quickCuisine">What sounds good?</label><select id="quickCuisine"><option value="">Anything · ${all.length} place${all.length===1?'':'s'}</option>${counts.map(c=>`<option value="${c.id}" ${q.cuisine===c.id?'selected':''}>${esc(c.label)} · ${c.count} place${c.count===1?'':'s'}</option>`).join('')}</select></div>`:''}<div id="quickOutput">${quickResultsHtml()}</div>`,{nav:false});
+}
+function quickResultsHtml(){
+ const q=state.quick,r=quickResult(),label=F.cuisines.find(c=>c[0]===q.cuisine)?.[1]||'',scope=`${r.total} saved ${label?esc(label)+' ':''}place${r.total===1?'':'s'}`;
+ if(!r.total)return `<section class="card empty"><span class="empty-emoji">🍽️</span><h2>${q.cuisine?'No saved places match':'No saved places yet'}</h2><p>${q.cuisine?'Choose another cuisine, or Anything.':familyToken?'Add a few favorite restaurants, then come back for a quick pick.':'Ask your organizer to add a few favorite restaurants.'}</p>${!q.cuisine&&familyToken?'<button class="btn btn-primary" data-act="nav" data-page="restaurants">Add restaurants</button>':''}</section>`;
+ if(!r.choices.length)return `<section class="card"><h2>You’ve seen them all</h2><p>That was every one of your ${scope}.</p><button class="btn btn-primary" data-act="quickRestart">Start over</button></section>`;
+ const more=Math.min(3,r.total-r.start);
+ return `<div class="quick-results" aria-live="polite">${r.choices.map((p,i)=>`<section class="card quick-choice${r.size>1?' quick-compact':''}"><div class="foodicon">${icon(p.category,p.name,p)}</div><div class="quick-choice-body"><div class="eyebrow">${r.size>1?'Option '+(i+1):r.start?'Another idea':'Today’s pick'}</div><h2>${esc(p.name)}</h2><p class="subtle">${esc(restaurantFacts(p))}</p></div><a class="btn ${r.size>1?'btn-line btn-sm':'btn-dark'}" target="_blank" rel="noopener noreferrer" href="${esc(mapsForRestaurant(p))}" aria-label="Open ${esc(p.name)} in Maps">📍 Open in Maps</a></section>`).join('')}</div>
+ <div class="btn-row quick-actions">${r.remaining?`<button class="btn btn-primary" data-act="quickNext">${r.size>1?'Show more':'Try another'}</button>`:'<button class="btn btn-primary" data-act="quickRestart">Start over</button>'}${r.size===1&&more>=2?`<button class="btn btn-line" data-act="quickThree">Show me ${more}</button>`:''}</div>
+ ${familyToken&&r.choices.length>=2?`<button class="btn btn-line btn-full quick-vote" data-act="quickVote">🗳️ Let the family vote on these ${r.choices.length}</button>`:''}
+ <p class="note">${r.remaining?`${r.remaining} more of your ${scope} to go.`:`That’s the last of your ${scope}.`} Everyone sees the same order today; it reshuffles tomorrow. Opening hours aren’t checked, and nothing is saved.</p>`;
+}
+function refreshQuick(focusAct){
+ const out=$('quickOutput');if(!out)return render();
+ out.innerHTML=quickResultsHtml();
+ if(focusAct)(out.querySelector?.(`[data-act="${focusAct}"]`)||out.querySelector?.('[data-act="quickNext"],[data-act="quickRestart"]'))?.focus?.();
 }
 function renderWelcome(){layout(`<div class="card hero"><div class="eyebrow">WELCOME TO GOODNIGHTS</div><h1>Good food. <br>Family decisions.</h1><p class="lede">${live?'Open the invitation your organizer sent you, or paste it below to connect this phone.':'Create your family\'s private restaurant list and let everyone have a say.'}</p>
  ${live?`<div class="field"><label for="joinToken">Your invitation link</label><input id="joinToken" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your personal, organizer or group link"></div><button class="btn btn-dark" data-act="join">Connect my invitation</button><p class="note">Need a link? Ask your family organizer. A group vote invitation lets you choose your name; your personal link connects this phone for future votes.</p><details class="household-setup"><summary>Setting up a new household?</summary><p class="note">Create a family only on your own newly configured instance. Joining an existing family? Use its invitation above.</p><button class="btn btn-line" data-act="newFamily">Create our family</button></details>`:`<button class="btn btn-dark" data-act="demo">Explore the sample app</button><p class="note">Demo only until you connect Supabase. Votes stay in this browser and cannot be shared with other phones.</p>`}</div>`,{nav:false})}
@@ -377,7 +402,8 @@ function renderHome(){
  if(member&&!familyToken)return renderMemberHome();
  let latest=family.polls||[];
  startHomeUpdates();
- layout(`${tonightHero()||`<div class="card hero"><div class="hero-emoji">🍔</div><div class="eyebrow">${esc(family.name)} · DINNER CLUB</div><h1>So... what's for dinner?</h1><p class="lede">Skip the debate. Pick a few places, vote together, and let dinner decide itself.</p>${familyToken?`<button class="btn btn-dark" data-act="nav" data-page="create">Start a family vote →</button>`:`<p class="subtle">Signed in as ${esc(member?.name||"family member")}</p>`}</div>`}
+ layout(`${tonightHero()||`<div class="card hero"><div class="hero-emoji">🍔</div><div class="eyebrow">${esc(family.name)} · DINNER CLUB</div><h1>So... what's for dinner?</h1><p class="lede">Skip the debate. Pick a few places, vote together, and let dinner decide itself.</p>${familyToken?`<div class="btn-row hero-actions"><button class="btn btn-dark" data-act="openQuick">⚡ Quick pick</button><button class="btn btn-line" data-act="nav" data-page="create">Start a family vote →</button></div>`:`<p class="subtle">Signed in as ${esc(member?.name||"family member")}</p>`}</div>`}
+ ${familyToken&&tonightHero()?'<section class="card"><h3>Need an answer right now?</h3><p class="note">Skip the vote and get one suggestion from your saved places.</p><button class="btn btn-line btn-sm" data-act="openQuick">⚡ Quick pick</button></section>':''}
  ${familyToken&&oneTimeEnabled?'<section class="card"><h3>Deciding somewhere new?</h3><p class="note">Type a few restaurant names and invite one-time guests.</p><button class="btn btn-line btn-sm" data-act="nav" data-page="oneTime">Start a one-time vote →</button></section>':''}
  ${!live?`<div class="muted-box" style="margin-bottom:15px"><strong>🧪 Local demo</strong><div>This sample works on this device only. To vote together on multiple phones, complete the Supabase + GitHub Pages setup in the README.</div></div>`:''}
  ${familyToken?`<div class="grid2"><div class="card"><span class="eyebrow">FAMILY FAVORITES</span><h2>🍽️ ${family.restaurants.length} places</h2><p class="subtle">Add restaurants once. Vote on them anytime.</p><button class="btn btn-quiet btn-sm" data-act="nav" data-page="restaurants">Manage restaurants ↗</button></div>
@@ -389,7 +415,7 @@ function renderHome(){
 function renderMemberHome(){
  const polls=family.polls||[],open=polls.filter(p=>p.status==='open'),closed=polls.filter(p=>p.status==='closed');
  const cards=list=>list.map(p=>`<div class="card"><div class="between"><div><h3>${esc(p.title||p.meal)} · ${methodName(p.method)}</h3><p class="subtle">${timeAgo(p.created_at)} · ${p.voted_count}/${p.expected_voters} votes in</p></div>${pill(p)}</div><button class="btn btn-primary btn-full" data-act="openpoll" data-id="${esc(p.id)}">${p.status==='open'?'Open vote →':'See results →'}</button></div>`).join('');
- layout(`${memberIdentity(member)}<h1>Your family votes.</h1><p class="lede">Choose an open vote or catch up on the latest dinner decision.</p><h2>🗳️ Open votes</h2>${open.length?cards(open):'<div class="card empty"><h3>Nothing to vote on right now</h3><p>Your organizer will send an invitation when the next vote is ready.</p></div>'}<h2 style="margin-top:24px">🏆 Recent results</h2>${closed.length?cards(closed.slice(0,4)):'<p class="subtle">Finished votes will appear here.</p>'}${nominationHtml()}${installationGuide()}`)
+ layout(`${memberIdentity(member)}<h1>Your family votes.</h1><p class="lede">Choose an open vote or catch up on the latest dinner decision.</p>${quickAll().length?'<button class="btn btn-line btn-full member-quick" data-act="openQuick">⚡ No vote? Quick pick a place</button>':''}<h2>🗳️ Open votes</h2>${open.length?cards(open):'<div class="card empty"><h3>Nothing to vote on right now</h3><p>Your organizer will send an invitation when the next vote is ready.</p></div>'}<h2 style="margin-top:24px">🏆 Recent results</h2>${closed.length?cards(closed.slice(0,4)):'<p class="subtle">Finished votes will appear here.</p>'}${nominationHtml()}${installationGuide()}`)
 }
 function memberAvatar(m){const a=F.avatar(m?.avatar);return a.startsWith('data:')?`<span class="member-avatar"><img data-member-avatar src="${esc(a)}" alt=""><span hidden>🙂</span></span>`:`<span class="member-avatar" aria-hidden="true">${esc(a)}</span>`}
 function memberIdentity(m){return `<div class="member-identity">${memberAvatar(m)}<div><span class="eyebrow">YOUR FAMILY VOTE</span><strong>${esc(m.name)}</strong></div></div>`}
@@ -834,7 +860,7 @@ async function getTown(){
  try{localStorage.setItem('gw_town_cache',JSON.stringify(townCache))}catch{}
  await findNearby(lat,lon);
 }
-const ownerActions=new Set(['createOneTime','savePreset','usePreset','archivePreset','dismissNomination','reviewNomination','saveResultsCaption','enableAlerts','disableAlerts','tonightAction','createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','confirmLocation','useSavedLocation','editMatchedLocation','viewSavedLocation','newShortlist','repeatDinner','cancelRepeat','savePollSettings','deletePoll','clearHistory']);
+const ownerActions=new Set(['quickVote','createOneTime','savePreset','usePreset','archivePreset','dismissNomination','reviewNomination','saveResultsCaption','enableAlerts','disableAlerts','tonightAction','createPoll','addMember','saveMemberProfile','editMemberProfile','resetMemberLink','removeMember','copyMember','familyLink','editRestaurant','saveRestaurant','archive','addManual','saveGoogle','addNearby','newFamily','closePoll','runoff','randomTie','confirmLocation','useSavedLocation','editMatchedLocation','viewSavedLocation','newShortlist','repeatDinner','cancelRepeat','savePollSettings','deletePoll','clearHistory']);
 async function doAction(act,button){
  if(act==='createOneTime'){
   if(!familyToken)return;
@@ -906,6 +932,19 @@ async function doAction(act,button){
  if(act==='toggleDiscovery'){captureRestaurantDrafts();state.discoverOpen=!state.discoverOpen;render();app.querySelector?.(state.discoverOpen?'#restaurantDiscovery':'#restaurantSearch')?.scrollIntoView({block:'start',behavior:'smooth'});return}
 
  if(ownerActions.has(act)&&!familyToken&&act!=='newFamily'){toast('Use your organizer link to manage the family.');return}
+
+ if(act==='openQuick'){if(!familyToken&&!memberToken)return;if(!family)await loadFamily();state.quick={cuisine:'',start:0,size:1};setPage('quick');return}
+ if(act==='quickNext'||act==='quickThree'||act==='quickRestart'){
+  const q=state.quick;if(state.page!=='quick')return;
+  if(act==='quickNext'){const r=quickResult();if(!r.remaining)return;q.start+=r.size}else if(act==='quickThree')q.size=3;else{q.start=0;q.size=1}
+  refreshQuick(act==='quickThree'?'quickNext':act);return;
+ }
+ if(act==='quickVote'){
+  if(state.page!=='quick')return;const ids=quickResult().choices.map(r=>r.id);if(ids.length<2)return;
+  state.pollTitle='';state.autoTie=false;state.presetId=null;state.presetName='';state.repeatDraft=null;state.pollSearch='';state.pollCenter=null;state.pollRadius='';
+  state.pollCuisine=state.quick.cuisine;state.selected=new Set(ids);state.createStep=0;
+  await loadCreatePeople();setPage('create');toast(ids.length+' places shortlisted. Add more or continue.');return;
+ }
 
  if(act==='retryPlanning'){await loadPlanning();render();return}
  if(act==='tonightAction'){await openPoll(button.dataset.id);app.querySelector?.('.people-panel')?.scrollIntoView?.({block:'start'});return}
@@ -1188,6 +1227,8 @@ app.addEventListener('click',async e=>{
 });
 app.addEventListener('change',e=>{
  const t=e.target;
+ // Update results only: replacing the native select would reopen the iOS picker.
+ if(t.id==='quickCuisine'){state.quick.cuisine=F.cuisines.some(c=>c[0]===t.value)?t.value:'';state.quick.start=0;refreshQuick();return}
  if(t.id==='profilePhoto'){
   const file=t.files?.[0];if(!file)return;
   const editing=state.editingMember;state.photoBusy=true;const save=app.querySelector('[data-act="saveMemberProfile"]');if(save)save.disabled=true;

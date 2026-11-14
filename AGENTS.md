@@ -81,3 +81,8 @@ https://jacobmgoodnight.github.io/goodnights-whats-for-dinner/
 - Name-only options use new inactive restaurant rows to preserve poll history without adding to the active library. Keep existing location review and historical IDs intact.
 - Reuse all three ballot validators/tallies through the private writer. Identical retries may acknowledge the same guest ballot, but guest edits remain forbidden. Creation retries reuse a per-draft request UUID; edits start a new request. No vote implies an actual meal.
 - Optional `GW_CONFIG.oneTimePolls=false` pauses creation only. Keep existing guest invitations/results working during a rollback; never drop guest/history data automatically.
+
+## Quick Pick
+- `docs/quick-pick.md` describes the frontend-only no-vote suggestion. `decisions.js` is pure (daily deterministic order by local date + restaurant ID); no requests, writes, meal records or personalization claims. Organizers and personal members only; never group/one-time guests.
+- "Let the family vote on these" only preselects places in the existing create flow; creation still requires the normal review. Keep the native cuisine select in place when results update.
+- Confirmed meal history is still unapproved. Do not merge the held `codex/smarter-dinner-proposal-held-20261028` SQL or treat vote winners as meals.

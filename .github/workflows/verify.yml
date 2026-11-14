@@ -41,6 +41,7 @@ jobs:
           node tests/browser/release.cjs
           node tests/browser/location-saving.cjs
           node tests/browser/organizer-planning.cjs
+          node tests/browser/quick-pick.cjs
   sql-fixtures:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
