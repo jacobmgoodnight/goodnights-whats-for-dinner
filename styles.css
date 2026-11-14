@@ -124,3 +124,9 @@ h1,h2,.card strong{overflow-wrap:anywhere}.card>.between>div{min-width:0}
 .household-setup{margin-top:20px}.household-setup summary{cursor:pointer;min-height:44px;align-content:center;font-size:14px;font-weight:750}
 .one-time-options{margin-bottom:16px}.one-time-options summary{min-height:44px;align-content:center;cursor:pointer;font-weight:750}.one-time-options .field{margin-top:12px}
 .field textarea{font:inherit;font-size:16px;line-height:1.5;width:100%;resize:vertical;min-height:130px;border:1px solid var(--line);background:#fff;border-radius:13px;padding:13px 14px}.field textarea:focus{border-color:var(--orange);outline:3px solid #ef9156;outline-offset:2px}
+/* Quick Pick reuses the existing palette, cards and native select; 44px touch targets. */
+.quick-back{margin-bottom:16px}.quick-filter select{font-size:16px;min-height:46px;max-width:100%}
+.quick-choice{display:flex;flex-wrap:wrap;align-items:center;gap:14px}.quick-choice .foodicon{flex:0 0 auto}.quick-choice-body{flex:1 1 160px;min-width:0}.quick-choice-body h2{margin:0 0 4px}.quick-choice-body .eyebrow{margin-bottom:6px}.quick-choice-body .subtle{margin:0}
+.quick-choice>.btn{flex:1 1 100%;text-decoration:none}.quick-compact{padding:16px}.quick-compact>.btn{min-height:44px;font-size:13px}
+.quick-actions{margin:4px 0 12px}.quick-actions .btn,.quick-vote,.member-quick{min-height:46px}.member-quick{margin-bottom:22px}
+.hero-actions .btn{flex:1 1 200px}

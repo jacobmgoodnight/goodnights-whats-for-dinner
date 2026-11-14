@@ -27,6 +27,7 @@ No voter accounts or paid subscriptions required.
 
 ## Highlights
 
+- **Quick Pick:** no vote needed. Get one suggestion from your saved places, try another, filter by cuisine, open it in Maps, or turn the options into a family vote. [Details](docs/quick-pick.md).
 - **Three ways to vote:** approval, swipe-style yes/no consensus, and ranked-choice voting.
 - **Your restaurant shortlist:** save favorites, search OpenStreetMap, or add places manually—including name/address details copied from Google Maps.
 - **Quick dinner themes:** filter saved restaurants for pizza night, Mexican night, and other cuisines; optionally pick five places for a shortlist.
